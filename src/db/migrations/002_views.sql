@@ -1,7 +1,7 @@
 -- Monthly summary (income/expense totals by category and month)
 CREATE OR REPLACE VIEW monthly_summary AS
 SELECT
-  DATE_TRUNC('month', date)::DATE AS month,
+  DATE_TRUNC('month', date::timestamp)::DATE AS month,
   type,
   category_id,
   SUM(amount_base)                AS total,
@@ -30,7 +30,7 @@ JOIN categories c ON c.id = b.category_id
 LEFT JOIN transactions t
   ON  t.category_id = b.category_id
   AND t.type        = 'expense'
-  AND DATE_TRUNC('month', t.date) = DATE_TRUNC('month', CURRENT_DATE)
+  AND DATE_TRUNC('month', t.date::timestamp) = DATE_TRUNC('month', CURRENT_DATE::timestamp)
 GROUP BY b.id, b.category_id, c.name, c.icon,
          b.amount, b.period, b.alert_threshold,
          b.alerted_80_at, b.alerted_100_at;
