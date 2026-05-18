@@ -5,6 +5,7 @@ import { startHandler, handleCurrencySelection, handleTimezoneSelection } from '
 import { helpHandler } from './commands/help';
 import { addHandler, handleAddCallback } from './commands/add';
 import { historyHandler, deleteHandler, editHandler } from './commands/history';
+import { budgetHandler, handleBudgetCallback } from './commands/budget';
 import { textMessageHandler, handleNlpCategoryCallback } from './handlers/textMessage';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from '../utils/logger';
@@ -44,6 +45,7 @@ export function createBot(): Telegraf {
   bot.command('history', historyHandler);
   bot.command('delete', deleteHandler);
   bot.command('edit', editHandler);
+  bot.command('budget', budgetHandler);
 
   // ─── Callbacks & Messages ───────────────────────────────────────────────
   bot.on('callback_query', async (ctx) => {
@@ -56,9 +58,12 @@ export function createBot(): Telegraf {
       await handleTimezoneSelection(ctx, data.replace('tz_', ''));
     } else if (data.startsWith('cat_')) {
       const categoryId = data.replace('cat_', '');
-      const handled = await handleNlpCategoryCallback(ctx, categoryId);
-      if (!handled) {
-        await handleAddCallback(ctx, 'cat', categoryId);
+      const handledNlp = await handleNlpCategoryCallback(ctx, categoryId);
+      if (!handledNlp) {
+        const handledBudget = await handleBudgetCallback(ctx, 'cat', categoryId);
+        if (!handledBudget) {
+          await handleAddCallback(ctx, 'cat', categoryId);
+        }
       }
     } else if (data.startsWith('date_')) {
       await handleAddCallback(ctx, 'date', data.replace('date_', ''));

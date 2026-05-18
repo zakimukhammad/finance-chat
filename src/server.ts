@@ -4,6 +4,7 @@ import { serve } from '@hono/node-server';
 import * as Sentry from '@sentry/node';
 import { createBot } from './bot';
 import { logger } from './utils/logger';
+import { registerJobs } from './jobs/scheduler';
 
 // ─── Initialize Sentry ─────────────────────────────────────────────────────
 if (process.env.SENTRY_DSN) {
@@ -78,6 +79,9 @@ async function main(): Promise<void> {
       logger.error({ err }, 'Failed to register webhook');
     }
   }
+
+  // Register scheduled cron jobs
+  registerJobs(bot);
 
   // Start HTTP server
   serve({

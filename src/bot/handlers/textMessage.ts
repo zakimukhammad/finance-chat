@@ -7,6 +7,7 @@ import { matchCategory } from '../../services/nlp/categoryMatcher';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { buildConfirmationKeyboard, buildCategoriesKeyboard } from '../../utils/keyboard';
 import { CategoryService } from '../../services/category';
+import { BudgetService } from '../../services/budget';
 import { logger } from '../../utils/logger';
 
 export const textMessageHandler = async (ctx: Context) => {
@@ -35,6 +36,13 @@ export const textMessageHandler = async (ctx: Context) => {
       }
       // If not yes/no, treat as new NLP input (fall through)
       await (ctx as any).clearConversationState();
+    }
+
+    // Budget setup flow: user typing amount
+    if (state.state === 'budget_set_amount') {
+      const { handleBudgetAmountFlow } = await import('../commands/budget');
+      const handled = await handleBudgetAmountFlow(ctx, state, text);
+      if (handled) return;
     }
 
     // NLP category selection flow: user picked a type
@@ -118,13 +126,18 @@ async function autoProcessNlp(ctx: Context, parsed: any, ownerCurrency: string) 
     },
   });
 
+  let budgetStr = '';
+  if (type === 'expense' && category.id) {
+    budgetStr = await BudgetService.formatInlineStatus(category.id, ownerCurrency);
+  }
+
   const text =
     `✅ Logged!\n\n` +
     `${type === 'expense' ? '💸' : '💰'} ${formatCurrency(parsed.amount, parsed.currency || ownerCurrency)}\n` +
     `📁 ${category.icon} ${category.name}\n` +
     `📅 ${formatDate(parsed.date)}\n` +
-    (parsed.description ? `📝 ${parsed.description}\n` : '') +
-    `\nID: \`${tx.id.split('-')[0]}\``;
+    (parsed.description ? `📝 ${parsed.description}\n` : '') + budgetStr +
+    `\n\nID: \`${tx.id.split('-')[0]}\``;
 
   await ctx.reply(text, {
     parse_mode: 'Markdown',
@@ -227,8 +240,13 @@ async function saveNlpTransaction(ctx: Context, nlpContext: any) {
 
   await (ctx as any).clearConversationState();
 
+  let budgetStr = '';
+  if (type === 'expense' && nlpContext.category_id) {
+    budgetStr = await BudgetService.formatInlineStatus(nlpContext.category_id, owner.currency);
+  }
+
   await ctx.reply(
-    `✅ Saved!\n` +
+    `✅ Saved!${budgetStr}\n\n` +
     `ID: \`${tx.id.split('-')[0]}\``,
     {
       parse_mode: 'Markdown',

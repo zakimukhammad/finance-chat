@@ -2,6 +2,7 @@ import { Context, Markup } from 'telegraf';
 import { CategoryService } from '../../services/category';
 import { TransactionService } from '../../services/transaction';
 import { OwnerService } from '../../services/owner';
+import { BudgetService } from '../../services/budget';
 import { buildCategoriesKeyboard, buildDateKeyboard, buildConfirmationKeyboard } from '../../utils/keyboard';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { formatISO, subDays } from 'date-fns';
@@ -132,12 +133,17 @@ const showConfirmationCard = async (ctx: Context, context: any) => {
   const telegramId = ctx.from?.id;
   const owner = await OwnerService.getOwner(telegramId!);
   const curr = owner?.currency || 'USD';
+  
+  let budgetStr = '';
+  if (context.type === 'expense' && context.category_id) {
+    budgetStr = await BudgetService.formatInlineStatus(context.category_id, curr);
+  }
 
   const text = `Please confirm details:\n\n` +
     `💰 **Amount**: ${formatCurrency(context.amount, curr)}\n` +
     `📁 **Category**: ${context.category_icon} ${context.category_name}\n` +
     `📅 **Date**: ${formatDate(context.date)}\n` +
-    `📝 **Description**: ${context.description || '-'}\n`;
+    `📝 **Description**: ${context.description || '-'}\n` + budgetStr;
 
   await ctx.reply(text, {
     parse_mode: 'Markdown',
