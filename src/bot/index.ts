@@ -5,7 +5,7 @@ import { startHandler, handleCurrencySelection, handleTimezoneSelection } from '
 import { helpHandler } from './commands/help';
 import { addHandler, handleAddCallback } from './commands/add';
 import { historyHandler, deleteHandler, editHandler } from './commands/history';
-import { textMessageHandler } from './handlers/textMessage';
+import { textMessageHandler, handleNlpCategoryCallback } from './handlers/textMessage';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from '../utils/logger';
 
@@ -55,7 +55,11 @@ export function createBot(): Telegraf {
     } else if (data.startsWith('tz_')) {
       await handleTimezoneSelection(ctx, data.replace('tz_', ''));
     } else if (data.startsWith('cat_')) {
-      await handleAddCallback(ctx, 'cat', data.replace('cat_', ''));
+      const categoryId = data.replace('cat_', '');
+      const handled = await handleNlpCategoryCallback(ctx, categoryId);
+      if (!handled) {
+        await handleAddCallback(ctx, 'cat', categoryId);
+      }
     } else if (data.startsWith('date_')) {
       await handleAddCallback(ctx, 'date', data.replace('date_', ''));
     } else if (data.startsWith('confirm_')) {
