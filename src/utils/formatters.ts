@@ -33,18 +33,24 @@ export function formatCurrency(amount: number, currencyCode: string): string {
  * Format an ISO date string to a human-friendly display.
  * e.g. formatDate("2026-05-18") → "May 18, 2026"
  */
-export function formatDate(dateStr: string): string {
-  const date = new Date(dateStr + 'T00:00:00');
-  return format(date, 'MMM d, yyyy');
+export function formatDate(isoDateString: string): string {
+  const date = new Date(isoDateString);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
 }
 
 /**
- * Format an ISO date string to a short display.
- * e.g. formatDateShort("2026-05-18") → "May 18"
+ * Format a date into a short readable string (e.g., "18 May")
  */
-export function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr + 'T00:00:00');
-  return format(date, 'MMM d');
+export function formatDateShort(isoDateString: string): string {
+  const date = new Date(isoDateString);
+  return date.toLocaleDateString('en-US', {
+    day: 'numeric',
+    month: 'short'
+  });
 }
 
 // ─── Progress Bar ───────────────────────────────────────────────────────────

@@ -1,6 +1,11 @@
-import { Telegraf, Context } from 'telegraf';
+import { Telegraf } from 'telegraf';
 import { ownerGate } from './middleware/ownerGate';
 import { conversationState } from './middleware/conversationState';
+import { startHandler, handleCurrencySelection, handleTimezoneSelection } from './commands/start';
+import { helpHandler } from './commands/help';
+import { addHandler, handleAddCallback } from './commands/add';
+import { historyHandler, deleteHandler, editHandler } from './commands/history';
+import { textMessageHandler } from './handlers/textMessage';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from '../utils/logger';
 
@@ -26,54 +31,49 @@ export function createBot(): Telegraf {
   bot.use(ownerGate);
   bot.use(conversationState);
 
-  // ─── Command Handlers ─────────────────────────────────────────────────
-  // /ping — Smoke test command (Milestone 1.1)
+  // ─── Commands ───────────────────────────────────────────────────────────
   bot.command('ping', async (ctx) => {
     logger.info('Received /ping command');
     await ctx.reply('pong 🏓');
   });
 
-  // /start — Placeholder for onboarding (Milestone 1.2)
-  bot.command('start', async (ctx) => {
-    await ctx.reply(
-      '👋 Welcome to your Personal Finance Bot!\n\n' +
-      'I\'ll help you track every rupiah, dollar, or euro right here in Telegram.\n\n' +
-      '📌 Quick start:\n' +
-      '• Type "spent 50000 on lunch" — log an expense\n' +
-      '• Type "earned 5000000 from salary" — log income\n' +
-      '• /summary — see this month\'s overview\n' +
-      '• /help — see all commands\n\n' +
-      'Your tracker is ready. Let\'s go! 🚀'
-    );
+  bot.start(startHandler);
+  bot.help(helpHandler);
+
+  bot.command('add', addHandler);
+  bot.command('history', historyHandler);
+  bot.command('delete', deleteHandler);
+  bot.command('edit', editHandler);
+
+  // ─── Callbacks & Messages ───────────────────────────────────────────────
+  bot.on('callback_query', async (ctx) => {
+    const data = (ctx.callbackQuery as any).data;
+    if (!data) return;
+
+    if (data.startsWith('currency_')) {
+      await handleCurrencySelection(ctx, data.replace('currency_', ''));
+    } else if (data.startsWith('tz_')) {
+      await handleTimezoneSelection(ctx, data.replace('tz_', ''));
+    } else if (data.startsWith('cat_')) {
+      await handleAddCallback(ctx, 'cat', data.replace('cat_', ''));
+    } else if (data.startsWith('date_')) {
+      await handleAddCallback(ctx, 'date', data.replace('date_', ''));
+    } else if (data.startsWith('confirm_')) {
+      await handleAddCallback(ctx, 'confirm', data.replace('confirm_', ''));
+    } else if (data.startsWith('undo_')) {
+      await handleAddCallback(ctx, 'undo', data.replace('undo_', ''));
+    }
+    
+    await ctx.answerCbQuery().catch(() => {});
   });
 
-  // /help — Show available commands
-  bot.command('help', async (ctx) => {
-    await ctx.reply(
-      '📖 *Available Commands*\n\n' +
-      '`/start`     — Set up your bot\n' +
-      '`/help`      — Show this help message\n' +
-      '`/ping`      — Check if bot is alive\n' +
-      '`/add`       — Add a transaction\n' +
-      '`/history`   — View recent transactions\n' +
-      '`/summary`   — Monthly overview\n' +
-      '`/budget`    — Manage budgets\n' +
-      '`/goal`      — Savings goals\n' +
-      '`/recurring` — Recurring entries\n' +
-      '`/export`    — Export CSV/PDF\n' +
-      '`/insights`  — AI spending analysis\n' +
-      '`/categories`— Manage categories\n' +
-      '`/currency`  — Change base currency\n' +
-      '`/settings`  — View/edit preferences\n',
-      { parse_mode: 'Markdown' }
-    );
-  });
+  bot.on('text', textMessageHandler);
 
-  // ─── Global Error Handler ─────────────────────────────────────────────
+  // ─── Global Error Handler ───────────────────────────────────────────────
   bot.catch((err, ctx) => {
     logger.error({ err, update_id: ctx.update?.update_id }, 'Telegraf global error');
   });
 
-  logger.info('Bot instance created with middleware chain');
+  logger.info('Bot instance created with middleware chain and commands');
   return bot;
 }
