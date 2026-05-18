@@ -1,0 +1,50 @@
+# .github/workflows/deploy.yml
+name: Test & Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: testpw
+          POSTGRES_DB: financebot_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+        env:
+          DATABASE_URL: postgresql://postgres:testpw@localhost:5432/financebot_test
+          REDIS_URL: ""          # mocked in tests
+          GEMINI_API_KEY: mock   # mocked via MSW
+          GROQ_API_KEY: mock
+          TELEGRAM_BOT_TOKEN: mock:token
+          OWNER_TELEGRAM_ID: "123456789"
+          TELEGRAM_WEBHOOK_SECRET: test-secret
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
