@@ -6,6 +6,8 @@ import { helpHandler } from './commands/help';
 import { addHandler, handleAddCallback } from './commands/add';
 import { historyHandler, deleteHandler, editHandler } from './commands/history';
 import { budgetHandler, handleBudgetCallback } from './commands/budget';
+import { walletHandler, handleWalletCallback } from './commands/wallets';
+import { summaryHandler } from './commands/summary';
 import { textMessageHandler, handleNlpCategoryCallback } from './handlers/textMessage';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from '../utils/logger';
@@ -46,6 +48,9 @@ export function createBot(): Telegraf {
   bot.command('delete', deleteHandler);
   bot.command('edit', editHandler);
   bot.command('budget', budgetHandler);
+  bot.command('wallet', walletHandler);
+  bot.command('wallets', walletHandler);
+  bot.command('summary', summaryHandler);
 
   // ─── Callbacks & Messages ───────────────────────────────────────────────
   bot.on('callback_query', async (ctx) => {
@@ -71,6 +76,10 @@ export function createBot(): Telegraf {
       await handleAddCallback(ctx, 'confirm', data.replace('confirm_', ''));
     } else if (data.startsWith('undo_')) {
       await handleAddCallback(ctx, 'undo', data.replace('undo_', ''));
+    } else if (data.startsWith('wicon_') || data.startsWith('wtype_') || data.startsWith('wdef_')) {
+      const action = data.split('_')[0];
+      const val = data.replace(`${action}_`, '');
+      await handleWalletCallback(ctx, action, val);
     }
     
     await ctx.answerCbQuery().catch(() => {});

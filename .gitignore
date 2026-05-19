@@ -28,3 +28,6 @@ coverage/
 
 # Docker volumes
 pgdata/
+
+# Temporary migration scripts
+run_migration.*

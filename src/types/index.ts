@@ -22,6 +22,21 @@ export interface OwnerSettings {
   weekly_digest: boolean;
   digest_hour: number;    // 0-23 in owner's local time
   show_budget_in_summary: boolean;
+  default_wallet_id: string | null;
+}
+
+export type WalletType = "cash" | "bank" | "ewallet" | "credit" | "investment" | "other";
+
+export interface Wallet {
+  id: string;
+  name: string;
+  icon: string;
+  type: WalletType;
+  currency: string;
+  balance: number;
+  is_default: boolean;
+  sort_order: number;
+  created_at: string;
 }
 
 // ─── Transaction ────────────────────────────────────────────────────────────
@@ -32,7 +47,9 @@ export interface Transaction {
   amount: number;
   currency: string;
   amount_base: number;    // converted to owner.currency
-  category_id: string;
+  wallet_id: string | null;
+  to_wallet_id: string | null;
+  category_id: string | null;
   description: string | null;
   date: string;           // ISO date "YYYY-MM-DD"
   source: TransactionSource;
@@ -119,10 +136,12 @@ export interface ConversationState {
 // ─── NLP Parse Result ───────────────────────────────────────────────────────
 
 export interface ParsedTransaction {
-  intent: "LOG_EXPENSE" | "LOG_INCOME" | "UNKNOWN";
+  intent: "LOG_EXPENSE" | "LOG_INCOME" | "LOG_TRANSFER" | "UNKNOWN";
   amount: number;
   currency: string;
   category_hint: string | null;
+  wallet_hint?: string | null;
+  to_wallet_hint?: string | null;
   description: string | null;
   date: string;             // ISO date resolved from input
   confidence: number;       // 0.0 – 1.0
@@ -169,7 +188,9 @@ export interface CreateTransactionInput {
   type: TransactionType;
   amount: number;
   currency: string;
-  category_id: string;
+  wallet_id?: string | null;
+  to_wallet_id?: string | null;
+  category_id?: string | null;
   description?: string | null;
   date: string;
   source?: TransactionSource;

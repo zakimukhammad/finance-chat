@@ -1,8 +1,9 @@
 # Personal Financial Tracker Bot — Technical Requirements Document (TRD)
 
-> **Version:** 3.0.0
+> **Version:** 3.1.0
 > **Date:** 2026-05-18
 > **Status:** FINAL — Ready for AI Agent Execution
+> **Changelog:** v3.1.0 — Added Wallet/Account Management (Milestone 1.5); all subsequent milestones renumbered
 > **Owner:** Solo Developer (Personal Use)
 > **Platform:** Telegram Bot ONLY
 > **Intended Reader:** AI Agent / Autonomous Developer
@@ -59,7 +60,9 @@ A personal Telegram bot that tracks income, expenses, budgets, savings goals, an
 
 - Log income and expenses via natural language (`spent 50 on lunch`)
 - Auto-categorise transactions using AI
-- On-demand summaries: daily, weekly, monthly, by category
+- **Multiple wallets/accounts** (cash, bank, e-wallet) with individual balances
+- **Transfer between wallets** tracked as a first-class transaction type
+- On-demand summaries: daily, weekly, monthly, by category or by wallet
 - Budget limits per category with push alerts at 80% and 100%
 - Savings goals with progress tracking and deadline reminders
 - Recurring transactions auto-logged on schedule
@@ -374,9 +377,10 @@ financebot/
 │   │   ├── commands/
 │   │   │   ├── start.ts             ← /start onboarding flow
 │   │   │   ├── help.ts              ← /help
-│   │   │   ├── add.ts               ← /add expense, /add income
+│   │   │   ├── add.ts               ← /add expense, /add income, /add transfer
 │   │   │   ├── history.ts           ← /history, /delete, /edit
 │   │   │   ├── summary.ts           ← /summary, /summary week, /summary today
+│   │   │   ├── wallets.ts           ← /wallets, /wallet add, /wallet delete, /wallet balance
 │   │   │   ├── budget.ts            ← /budget set, /budget status, /budget delete
 │   │   │   ├── goals.ts             ← /goal set, /goal add, /goal list, /goal delete
 │   │   │   ├── recurring.ts         ← /recurring add, /recurring list, /recurring delete
@@ -388,6 +392,7 @@ financebot/
 │   │       ├── textMessage.ts       ← NLP entry point for free-form messages
 │   │       └── callbackQuery.ts     ← Inline keyboard button handler
 │   ├── services/
+│   │   ├── wallet.ts
 │   │   ├── transaction.ts
 │   │   ├── budget.ts
 │   │   ├── goal.ts
@@ -453,6 +458,7 @@ financebot/
 | `<free text>` | Log transaction via natural language | `spent 12.50 on coffee` |
 | `/add expense` | Guided interactive expense entry | `/add expense` |
 | `/add income` | Guided interactive income entry | `/add income` |
+| `/add transfer` | Transfer funds between wallets | `/add transfer` |
 | `/history` | Show last 10 transactions | `/history` |
 | `/history <N>` | Show last N transactions (max 50) | `/history 20` |
 | `/delete last` | Delete most recent transaction | `/delete last` |
@@ -462,6 +468,11 @@ financebot/
 | `/summary week` | Current week summary | `/summary week` |
 | `/summary today` | Today's transactions and total | `/summary today` |
 | `/summary <YYYY-MM>` | Summary for a specific month | `/summary 2026-04` |
+| `/wallets` | List all wallets with balances | `/wallets` |
+| `/wallet add <name> <icon> <balance>` | Create a new wallet | `/wallet add BCA 🏦 5000000` |
+| `/wallet delete <name>` | Delete a wallet | `/wallet delete BCA` |
+| `/wallet rename <old> <new>` | Rename a wallet | `/wallet rename BCA BCA-Main` |
+| `/wallet balance` | Show all wallet balances + total net worth | `/wallet balance` |
 | `/budget set <cat> <amt>` | Set monthly budget for a category | `/budget set food 500` |
 | `/budget status` | View all budgets with usage bars | `/budget status` |
 | `/budget delete <cat>` | Remove a budget | `/budget delete food` |
@@ -532,6 +543,7 @@ export type TransactionSource = "manual" | "recurring" | "import";
 export type BudgetPeriod = "weekly" | "monthly" | "yearly";
 export type GoalStatus = "active" | "completed" | "paused";
 export type RecurringFrequency = "daily" | "weekly" | "monthly" | "yearly";
+export type WalletType = "cash" | "bank" | "ewallet" | "credit" | "investment" | "other";
 
 export interface Owner {
   id: string;
@@ -547,6 +559,19 @@ export interface OwnerSettings {
   weekly_digest: boolean;
   digest_hour: number;    // 0-23 in owner's local time
   show_budget_in_summary: boolean;
+  default_wallet_id: string | null;  // pre-selected wallet for quick logging
+}
+
+export interface Wallet {
+  id: string;
+  name: string;           // e.g. "BCA", "Cash", "GoPay"
+  icon: string;           // emoji e.g. "🏦", "💵", "📱"
+  type: WalletType;
+  currency: string;       // ISO 4217 — wallet's native currency
+  balance: number;        // current balance (updated on every transaction)
+  is_default: boolean;    // pre-selected in guided flows if true
+  sort_order: number;
+  created_at: string;
 }
 
 export interface Transaction {
@@ -554,10 +579,12 @@ export interface Transaction {
   type: TransactionType;
   amount: number;
   currency: string;
-  amount_base: number;    // converted to owner.currency
+  amount_base: number;        // converted to owner.currency
+  wallet_id: string | null;   // source wallet (null = unassigned / legacy)
+  to_wallet_id: string | null;// destination wallet (only for type='transfer')
   category_id: string;
   description: string | null;
-  date: string;           // ISO date "YYYY-MM-DD"
+  date: string;               // ISO date "YYYY-MM-DD"
   source: TransactionSource;
   recurring_id: string | null;
   metadata: TransactionMetadata;
@@ -597,7 +624,8 @@ export interface SavingsGoal {
   name: string;
   target_amount: number;
   current_amount: number;
-  deadline: string | null;  // ISO date
+  wallet_id: string | null;   // optional: link goal to a specific wallet
+  deadline: string | null;    // ISO date
   status: GoalStatus;
   created_at: string;
 }
@@ -608,8 +636,10 @@ export interface RecurringTransaction {
   amount: number;
   type: TransactionType;
   category_id: string;
+  wallet_id: string | null;   // wallet to debit/credit on auto-log
+  to_wallet_id: string | null;// for recurring transfers
   frequency: RecurringFrequency;
-  next_due_date: string;    // ISO date
+  next_due_date: string;      // ISO date
   active: boolean;
   created_at: string;
 }
@@ -629,10 +659,12 @@ export interface ConversationState {
 
 // NLP parse result
 export interface ParsedTransaction {
-  intent: "LOG_EXPENSE" | "LOG_INCOME" | "UNKNOWN";
+  intent: "LOG_EXPENSE" | "LOG_INCOME" | "LOG_TRANSFER" | "UNKNOWN";
   amount: number;
   currency: string;
   category_hint: string | null;
+  wallet_hint: string | null;   // e.g. "BCA", "gopay", "cash" — matched to wallet name
+  to_wallet_hint: string | null;// for transfers: destination wallet hint
   description: string | null;
   date: string;             // ISO date resolved from input
   confidence: number;       // 0.0 – 1.0
@@ -661,10 +693,30 @@ CREATE TABLE owner (
     "daily_digest": false,
     "weekly_digest": false,
     "digest_hour": 21,
-    "show_budget_in_summary": true
+    "show_budget_in_summary": true,
+    "default_wallet_id": null
   }',
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ──────────────────────────────────────────
+-- WALLETS / ACCOUNTS
+-- ──────────────────────────────────────────
+CREATE TABLE wallets (
+  id          UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        TEXT    NOT NULL,
+  icon        TEXT    NOT NULL DEFAULT '💳',
+  type        TEXT    NOT NULL DEFAULT 'other'
+                CHECK (type IN ('cash', 'bank', 'ewallet', 'credit', 'investment', 'other')),
+  currency    CHAR(3) NOT NULL DEFAULT 'USD',
+  balance     NUMERIC(15, 2) NOT NULL DEFAULT 0,  -- updated on every transaction
+  is_default  BOOLEAN NOT NULL DEFAULT FALSE,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Only one wallet may be default at a time (partial unique index)
+CREATE UNIQUE INDEX idx_wallets_one_default ON wallets (is_default) WHERE is_default = TRUE;
 
 -- ──────────────────────────────────────────
 -- CATEGORIES
@@ -687,8 +739,10 @@ CREATE TABLE recurring_transactions (
   id             UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
   description    TEXT    NOT NULL,
   amount         NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
-  type           TEXT    NOT NULL CHECK (type IN ('income', 'expense')),
+  type           TEXT    NOT NULL CHECK (type IN ('income', 'expense', 'transfer')),
   category_id    UUID    REFERENCES categories(id) ON DELETE SET NULL,
+  wallet_id      UUID    REFERENCES wallets(id) ON DELETE SET NULL,    -- source wallet
+  to_wallet_id   UUID    REFERENCES wallets(id) ON DELETE SET NULL,    -- dest (transfers only)
   frequency      TEXT    NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
   next_due_date  DATE    NOT NULL,
   active         BOOLEAN NOT NULL DEFAULT TRUE,
@@ -703,7 +757,9 @@ CREATE TABLE transactions (
   type          TEXT    NOT NULL CHECK (type IN ('income', 'expense', 'transfer')),
   amount        NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
   currency      CHAR(3) NOT NULL,
-  amount_base   NUMERIC(12, 2),   -- converted to owner.currency
+  amount_base   NUMERIC(12, 2),       -- converted to owner.currency
+  wallet_id     UUID    REFERENCES wallets(id) ON DELETE SET NULL,    -- source wallet
+  to_wallet_id  UUID    REFERENCES wallets(id) ON DELETE SET NULL,    -- dest (transfers only)
   category_id   UUID    REFERENCES categories(id) ON DELETE SET NULL,
   description   TEXT,
   date          DATE    NOT NULL DEFAULT CURRENT_DATE,
@@ -738,6 +794,7 @@ CREATE TABLE savings_goals (
   name            TEXT    NOT NULL,
   target_amount   NUMERIC(12, 2) NOT NULL CHECK (target_amount > 0),
   current_amount  NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (current_amount >= 0),
+  wallet_id       UUID    REFERENCES wallets(id) ON DELETE SET NULL, -- optional linked wallet
   deadline        DATE,
   status          TEXT    NOT NULL DEFAULT 'active'
                     CHECK (status IN ('active', 'completed', 'paused')),
@@ -765,10 +822,36 @@ SELECT
   DATE_TRUNC('month', date)::DATE AS month,
   type,
   category_id,
+  wallet_id,
   SUM(amount_base)                AS total,
   COUNT(*)                        AS txn_count
 FROM transactions
-GROUP BY 1, 2, 3;
+GROUP BY 1, 2, 3, 4;
+
+-- Wallet balances view (live, computed from transactions)
+-- NOTE: wallets.balance is also kept in sync as a denormalised column
+-- for fast reads. This view is the source of truth for reconciliation.
+CREATE OR REPLACE VIEW wallet_balances AS
+SELECT
+  w.id,
+  w.name,
+  w.icon,
+  w.type,
+  w.currency,
+  w.is_default,
+  w.sort_order,
+  -- income INTO this wallet
+  COALESCE(SUM(CASE WHEN t.type = 'income'   AND t.wallet_id    = w.id THEN t.amount ELSE 0 END), 0)
+  -- transfers INTO this wallet
++ COALESCE(SUM(CASE WHEN t.type = 'transfer' AND t.to_wallet_id = w.id THEN t.amount ELSE 0 END), 0)
+  -- expenses FROM this wallet
+- COALESCE(SUM(CASE WHEN t.type = 'expense'  AND t.wallet_id    = w.id THEN t.amount ELSE 0 END), 0)
+  -- transfers FROM this wallet
+- COALESCE(SUM(CASE WHEN t.type = 'transfer' AND t.wallet_id    = w.id THEN t.amount ELSE 0 END), 0)
+                                                                        AS computed_balance
+FROM wallets w
+LEFT JOIN transactions t ON (t.wallet_id = w.id OR t.to_wallet_id = w.id)
+GROUP BY w.id, w.name, w.icon, w.type, w.currency, w.is_default, w.sort_order;
 
 -- Budget utilisation for the current calendar month
 CREATE OR REPLACE VIEW budget_status AS
@@ -800,12 +883,31 @@ GROUP BY b.id, b.category_id, c.name, c.icon,
 ### 8.3 migrations/003_indexes.sql
 
 ```sql
-CREATE INDEX idx_txn_date     ON transactions (date DESC);
-CREATE INDEX idx_txn_category ON transactions (category_id);
-CREATE INDEX idx_txn_type     ON transactions (type);
-CREATE INDEX idx_txn_month    ON transactions (DATE_TRUNC('month', date));
-CREATE INDEX idx_txn_source   ON transactions (source);
-CREATE INDEX idx_rec_due      ON recurring_transactions (next_due_date) WHERE active = TRUE;
+CREATE INDEX idx_txn_date       ON transactions (date DESC);
+CREATE INDEX idx_txn_category   ON transactions (category_id);
+CREATE INDEX idx_txn_type       ON transactions (type);
+CREATE INDEX idx_txn_month      ON transactions (DATE_TRUNC('month', date));
+CREATE INDEX idx_txn_source     ON transactions (source);
+CREATE INDEX idx_txn_wallet     ON transactions (wallet_id);
+CREATE INDEX idx_txn_to_wallet  ON transactions (to_wallet_id);
+CREATE INDEX idx_rec_due        ON recurring_transactions (next_due_date) WHERE active = TRUE;
+CREATE INDEX idx_wallets_order  ON wallets (sort_order);
+```
+
+### 8.4 Balance Integrity Rule
+
+```
+wallets.balance is a DENORMALISED cache of the wallet's current balance.
+It must be updated atomically with every transaction INSERT or DELETE:
+
+  income  → wallet_id.balance  += amount
+  expense → wallet_id.balance  -= amount
+  transfer→ wallet_id.balance  -= amount
+             to_wallet_id.balance += amount
+
+Use a PostgreSQL transaction (BEGIN/COMMIT) to update both wallets.balance
+and INSERT transactions atomically. Never update balance outside of WalletService.
+The wallet_balances VIEW is used for periodic reconciliation checks only.
 ```
 
 ---
@@ -855,20 +957,95 @@ User → "kopi 15000 tadi pagi"
 ACTION: NLP fast-path regex → no match
 ACTION: NLP → Gemini Flash
 RESULT: { intent: LOG_EXPENSE, amount: 15000, currency: IDR,
-          category_hint: "food", description: "kopi", date: today, confidence: 0.91 }
+          category_hint: "food", wallet_hint: null, description: "kopi",
+          date: today, confidence: 0.91 }
+
+NOTE: wallet_hint is null → use owner's default wallet (e.g. "Cash")
 
 Bot  → "☕ Logged!
         💸 Rp15,000 — Food & Dining
+        💳 Wallet: Cash
         📅 Today, May 18
 
         [✅ Looks good] [✏️ Edit] [🗑️ Delete]"
 
 User → taps [✅ Looks good]
-ACTION: INSERT transaction, source=manual
-Bot  → "Saved! 📊 Food budget: 68% this month."
+ACTION: INSERT transaction with wallet_id = default_wallet_id
+ACTION: UPDATE wallets SET balance = balance - 15000 WHERE id = default_wallet_id
+Bot  → "Saved! 📊 Food budget: 68% this month. 💵 Cash: Rp234,000"
 ```
 
-### 9.3 Ambiguous Input
+### 9.3 Natural Language — With Wallet Hint
+
+```
+User → "bayar Tokopedia 150rb pakai GoPay"
+
+ACTION: NLP → Gemini Flash
+RESULT: { intent: LOG_EXPENSE, amount: 150000, currency: IDR,
+          category_hint: "shopping", wallet_hint: "GoPay",
+          description: "Tokopedia", date: today, confidence: 0.93 }
+
+ACTION: fuzzy-match "GoPay" against wallet names → matched to wallet id: gopay-uuid
+
+Bot  → "🛒 Logged!
+        💸 Rp150,000 — Shopping
+        📱 Wallet: GoPay
+        📅 Today, May 18
+
+        [✅ Looks good] [✏️ Edit] [🗑️ Delete]"
+```
+
+### 9.4 Transfer Between Wallets (/add transfer)
+
+```
+User → /add transfer
+
+Bot  → "💸 Transfer — Step 1 of 4
+        How much are you transferring?"
+
+User → "500000"
+Bot  → "From which wallet?"
+        [💵 Cash  Rp234k] [🏦 BCA  Rp4.2M] [📱 GoPay  Rp180k]
+
+User → taps [🏦 BCA  Rp4.2M]
+Bot  → "To which wallet?"
+        [💵 Cash  Rp234k] [📱 GoPay  Rp180k]  ← source wallet excluded
+
+User → taps [📱 GoPay  Rp180k]
+Bot  → "📋 Confirm Transfer:
+        💸 Rp500,000
+        From: 🏦 BCA
+        To:   📱 GoPay
+        📅 Today, May 18
+
+        [✅ Confirm] [✏️ Edit] [🗑️ Cancel]"
+
+User → taps [✅ Confirm]
+ACTION: INSERT transaction (type='transfer', wallet_id=BCA, to_wallet_id=GoPay)
+ACTION: UPDATE wallets SET balance = balance - 500000 WHERE id = BCA
+ACTION: UPDATE wallets SET balance = balance + 500000 WHERE id = GoPay
+
+Bot  → "✅ Transfer complete!
+        🏦 BCA:   Rp3,700,000
+        📱 GoPay: Rp680,000"
+```
+
+### 9.5 Wallet Balance (/wallet balance)
+
+```
+Bot  → "💼 Wallet Balances
+
+        🏦 BCA          Rp3,700,000
+        📱 GoPay          Rp680,000
+        💵 Cash           Rp234,000
+        💳 Mandiri Credit −Rp1,200,000
+        ─────────────────────────────
+        📊 Net Worth    Rp3,414,000
+
+        [➕ Add Wallet] [📊 View Summary]"
+```
+
+### 9.6 Ambiguous Input
 
 ```
 User → "50000 kemarin"
@@ -882,10 +1059,14 @@ Bot  → "Which category?"
         [🏥 Health] [🎮 Entertainment] [More ▼]
 
 User → taps [🛒 Shopping]
-Bot  → "✅ Rp50,000 — Shopping — May 17. Saved!"
+Bot  → "Which wallet?"
+        [💵 Cash] [🏦 BCA] [📱 GoPay] [Skip — no wallet]
+
+User → taps [💵 Cash]
+Bot  → "✅ Rp50,000 — Shopping — May 17 — Cash. Saved!"
 ```
 
-### 9.4 Monthly Summary (/summary)
+### 9.7 Monthly Summary (/summary)
 
 ```
 Bot  → "📊 May 2026 Summary
@@ -905,12 +1086,15 @@ Bot  → "📊 May 2026 Summary
         ⚠️  Food:        89%  (Rp520k / Rp585k)
         ✅  Transport:   72%  (Rp315k / Rp440k)
 
+        ━━━ Wallet Balances ━━━
+        🏦 BCA  Rp3,700,000 · 📱 GoPay Rp680,000 · 💵 Cash Rp234,000
+
         ↑ 12% vs April
 
         [📄 Export CSV] [📑 Export PDF] [💡 Insights]"
 ```
 
-### 9.5 Budget Alert (Automatic Push)
+### 9.8 Budget Alert (Automatic Push)
 
 ```
 TRIGGER: BudgetService.checkAndAlert() cron (every hour)
@@ -927,6 +1111,39 @@ Bot  → "⚠️ Budget Alert — Food & Dining
 
 ACTION: UPDATE budgets SET alerted_80_at = NOW() WHERE id = <budget_id>
 ```
+
+### 9.9 Savings Goal List (/goal list)
+
+```
+Bot  → "🎯 Savings Goals
+
+        💻 Laptop
+        ████████░░ 80% — Rp1,200,000 / Rp1,500,000
+        📅 Deadline: Dec 31, 2026 (227 days)
+        💡 Need Rp300k more (~Rp43k/month)
+        [➕ Add funds] [✏️ Edit] [🗑️ Delete]
+
+        🏖️ Vacation
+        ███░░░░░░░ 30% — Rp600,000 / Rp2,000,000
+        📅 No deadline
+        [➕ Add funds] [✏️ Edit] [🗑️ Delete]"
+```
+
+### 9.10 Recurring Auto-Log Push
+
+```
+TRIGGER: processRecurring cron (00:05 UTC daily)
+CONDITION: recurring_transaction.next_due_date <= today AND active = true
+
+Bot  → "🔄 Recurring entry processed!
+        📱 Netflix — Rp249,000 — Subscriptions
+        💳 Wallet: BCA
+        📅 Auto-logged for May 18
+
+        [✅ OK] [✏️ Edit amount] [⏸️ Pause]"
+```
+
+### 9.11 AI Insights (/insights)
 
 ### 9.6 Savings Goal List (/goal list)
 
@@ -992,22 +1209,44 @@ Bot  → "💡 May 2026 Spending Insights
 
 ## 10. Service Layer Design
 
-### 10.1 TransactionService
+### 10.1 WalletService
+
+```typescript
+interface WalletService {
+  create(name: string, icon: string, type: WalletType, currency: string, initialBalance: number): Promise<Wallet>;
+  list(): Promise<Wallet[]>;
+  getById(id: string): Promise<Wallet>;
+  getByName(name: string): Promise<Wallet | null>;       // exact + fuzzy match
+  fuzzyMatch(hint: string): Promise<Wallet | null>;      // NLP wallet_hint resolution
+  rename(id: string, newName: string): Promise<Wallet>;
+  delete(id: string): Promise<void>;                     // blocked if has transactions
+  setDefault(id: string): Promise<void>;                 // clears previous default first
+  getTotalNetWorth(): Promise<number>;                   // sum of all balances in base currency
+  // Internal — called inside transaction creation atomically:
+  adjustBalance(id: string, delta: number, client: SupabaseClient): Promise<void>;
+}
+```
+
+### 10.2 TransactionService
 
 ```typescript
 interface TransactionService {
   create(data: CreateTransactionInput): Promise<Transaction>;
+  // NOTE: create() calls WalletService.adjustBalance() inside the same DB transaction
   update(id: string, data: Partial<CreateTransactionInput>): Promise<Transaction>;
+  // NOTE: update() reverses the old wallet adjustment and applies the new one atomically
   delete(id: string): Promise<void>;
+  // NOTE: delete() reverses the wallet adjustment atomically
   getHistory(limit: number, offset?: number): Promise<Transaction[]>;
   getLastOne(): Promise<Transaction | null>;
   getSummary(period: "today" | "week" | "month", date?: string): Promise<SummaryResult>;
   getByDateRange(from: string, to: string): Promise<Transaction[]>;
   getByMonth(yearMonth: string): Promise<Transaction[]>;
+  getByWallet(walletId: string, limit?: number): Promise<Transaction[]>;
 }
 ```
 
-### 10.2 BudgetService
+### 10.3 BudgetService
 
 ```typescript
 interface BudgetService {
@@ -1019,11 +1258,11 @@ interface BudgetService {
 }
 ```
 
-### 10.3 GoalService
+### 10.4 GoalService
 
 ```typescript
 interface GoalService {
-  create(name: string, target: number, deadline?: string): Promise<SavingsGoal>;
+  create(name: string, target: number, walletId?: string, deadline?: string): Promise<SavingsGoal>;
   contribute(nameOrId: string, amount: number): Promise<SavingsGoal>;
   list(): Promise<SavingsGoal[]>;
   update(nameOrId: string, data: Partial<SavingsGoal>): Promise<SavingsGoal>;
@@ -1032,7 +1271,7 @@ interface GoalService {
 }
 ```
 
-### 10.4 RecurringService
+### 10.5 RecurringService
 
 ```typescript
 interface RecurringService {
@@ -1040,11 +1279,11 @@ interface RecurringService {
   list(): Promise<RecurringTransaction[]>;
   delete(id: string): Promise<void>;
   togglePause(id: string): Promise<RecurringTransaction>;
-  processDue(): Promise<void>;  // called by cron; creates transactions + sends push
+  processDue(): Promise<void>;  // called by cron; creates transactions + adjusts wallets + sends push
 }
 ```
 
-### 10.5 NLPService
+### 10.6 NLPService
 
 ```typescript
 interface NLPService {
@@ -1053,7 +1292,7 @@ interface NLPService {
 }
 ```
 
-### 10.6 InsightService
+### 10.7 InsightService
 
 ```typescript
 interface InsightService {
@@ -1061,7 +1300,7 @@ interface InsightService {
 }
 ```
 
-### 10.7 ReportService
+### 10.8 ReportService
 
 ```typescript
 interface ReportService {
@@ -1628,7 +1867,131 @@ Usage as % of free quota:   0.8%
 □ After each transaction save: inline budget status shown if category has a budget
 ```
 
-#### Milestone 1.5 — Savings Goals (Weeks 3–4)
+#### Milestone 1.5 — Wallet & Account Management (Week 4) ← NEW
+
+```
+MIGRATION: Add migration file src/db/migrations/004_wallets.sql
+  □ CREATE TABLE wallets (schema from Section 8.1)
+  □ CREATE UNIQUE INDEX idx_wallets_one_default (partial unique index)
+  □ ALTER TABLE transactions ADD COLUMN wallet_id UUID REFERENCES wallets(id) ON DELETE SET NULL
+  □ ALTER TABLE transactions ADD COLUMN to_wallet_id UUID REFERENCES wallets(id) ON DELETE SET NULL
+  □ ALTER TABLE recurring_transactions ADD COLUMN wallet_id UUID REFERENCES wallets(id) ON DELETE SET NULL
+  □ ALTER TABLE recurring_transactions ADD COLUMN to_wallet_id UUID REFERENCES wallets(id) ON DELETE SET NULL
+  □ ALTER TABLE savings_goals ADD COLUMN wallet_id UUID REFERENCES wallets(id) ON DELETE SET NULL
+  □ ALTER TABLE owner ALTER COLUMN settings SET DEFAULT '{..., "default_wallet_id": null}'
+  □ CREATE VIEW wallet_balances (from Section 8.2)
+  □ CREATE INDEX idx_txn_wallet, idx_txn_to_wallet (from Section 8.3)
+
+SEED: src/db/seed.ts — insert starter wallets
+  □ Insert 1 default wallet: { name: "Cash", icon: "💵", type: "cash", is_default: true, balance: 0 }
+  □ Owner may add bank/e-wallet accounts in /wallet add flow
+
+SERVICE: src/services/wallet.ts — implement WalletService interface (Section 10.1)
+  □ create(): INSERT wallet, if is_default=true first clear existing default
+  □ list(): SELECT all wallets ORDER BY sort_order, name
+  □ getByName(): exact match first, then case-insensitive, then fuzzy (Levenshtein ≤ 2)
+  □ fuzzyMatch(): for NLP wallet_hint resolution, same matching logic as getByName
+  □ rename(): UPDATE wallets SET name = newName WHERE id
+  □ delete(): BLOCK if SELECT COUNT(*) FROM transactions WHERE wallet_id = id > 0
+              show error: "Cannot delete — wallet has X transactions."
+  □ setDefault(): BEGIN; UPDATE wallets SET is_default=false; UPDATE SET is_default=true WHERE id; COMMIT
+  □ getTotalNetWorth(): SUM(balance converted to base currency) across all wallets
+  □ adjustBalance(): called inside TransactionService atomically via shared DB client
+                     UPDATE wallets SET balance = balance + delta WHERE id = walletId
+
+COMMANDS: src/bot/commands/wallets.ts
+  □ /wallets: list all wallets (same as /wallet balance)
+  □ /wallet balance:
+       Query wallet_balances view
+       Format: icon + name + formatted balance per wallet
+       Final line: "📊 Net Worth: [sum in base currency]"
+       Footer: [➕ Add Wallet] [📊 View Summary]
+  □ /wallet add <name> <icon> <initial_balance>:
+       Guided flow if args missing:
+         Step 1: ask name
+         Step 2: ask icon  → [🏦 Bank] [💵 Cash] [📱 E-Wallet] [💳 Credit] [✏️ Custom]
+         Step 3: ask type  → [Cash] [Bank] [E-Wallet] [Credit] [Investment] [Other]
+         Step 4: ask initial balance → default 0
+         Step 5: ask currency → [same as owner default] [Other]
+         Step 6: set as default? → [Yes] [No]
+         Step 7: confirmation → [✅ Save] [✏️ Edit] [🗑️ Cancel]
+       INSERT wallet; if set as default, call setDefault()
+       Confirm: "✅ Wallet 'BCA' added! Balance: Rp0"
+  □ /wallet delete <name>:
+       Fuzzy-match name → show matched wallet name + ask confirmation
+       If has transactions → show error, stop
+       If no transactions → DELETE + confirm "Wallet deleted."
+  □ /wallet rename <old> <new>:
+       Fuzzy-match old name → show matched wallet + new name + confirm
+       UPDATE wallets SET name = newName
+
+TRANSACTION INTEGRATION: update TransactionService.create()
+  □ If wallet_id provided: call WalletService.adjustBalance() inside same DB transaction
+       income:   adjustBalance(wallet_id, +amount)
+       expense:  adjustBalance(wallet_id, -amount)
+       transfer: adjustBalance(wallet_id, -amount) + adjustBalance(to_wallet_id, +amount)
+  □ If wallet_id is null: skip balance adjustment (legacy / unassigned)
+  □ On delete: reverse the balance adjustment atomically
+  □ On edit: reverse old adjustment, apply new adjustment atomically
+
+GUIDED FLOWS: update /add expense and /add income
+  □ Add wallet selection step AFTER category selection:
+       "Which wallet?"
+       Show buttons: [icon + name + short balance] per wallet
+       If only 1 wallet exists → auto-select, skip step
+       If owner.settings.default_wallet_id set → pre-select but still show all options
+       [Skip — no wallet] option always available
+
+  □ /add transfer: new 4-step guided flow (Section 9.4 flow)
+       Step 1: amount
+       Step 2: from wallet (inline keyboard, all wallets with current balance shown)
+       Step 3: to wallet (same list, source wallet excluded)
+       Step 4: date → [Today] [Yesterday] [Pick date]
+       Step 5: confirmation card → [✅ Confirm] [✏️ Edit] [🗑️ Cancel]
+
+NLP INTEGRATION: update NLPService
+  □ Add wallet_hint and to_wallet_hint fields to Gemini system prompt (Section 12.2)
+  □ After NLP parse: if wallet_hint is not null → call WalletService.fuzzyMatch(wallet_hint)
+       Matched → pre-fill wallet_id in confirmation card
+       No match → show "Which wallet?" step in confirmation flow
+  □ "transfer 500k from BCA to GoPay" → intent=LOG_TRANSFER,
+       wallet_hint="BCA", to_wallet_hint="GoPay"
+
+CONFIRMATION CARD: update for all transaction types
+  □ Show wallet line: "💳 Wallet: [icon] [name]" when wallet_id is set
+  □ For transfers: "From: [icon] [name] → To: [icon] [name]"
+  □ After save: show updated wallet balance in confirmation reply
+
+HISTORY: update /history output
+  □ Each line shows short wallet name in brackets: "1. Rp15k Food [Cash] Today"
+
+SUMMARY: update /summary
+  □ Add "━━━ Wallet Balances ━━━" section (Section 9.7 format)
+  □ Show top 3 wallets by balance; if more than 3 → show total net worth line
+
+ONBOARDING: update /start flow
+  □ After timezone selection, add wallet setup step:
+       "Last step — let's add your first wallet.
+        What do you call your main account?"
+       [💵 Cash] [🏦 Bank Account] [📱 E-Wallet] [✏️ Custom name]
+  □ Ask initial balance: "Starting balance? (Enter 0 if unknown)"
+  □ This wallet is set as is_default = true
+  □ Owner can add more wallets later via /wallet add
+
+TESTS: tests/unit/services/wallet.test.ts
+  □ create(): inserts wallet, sets is_default correctly
+  □ setDefault(): clears previous default before setting new one
+  □ delete(): blocked when transactions reference wallet
+  □ delete(): succeeds when no transactions
+  □ fuzzyMatch(): matches "gopay" → "GoPay", "bca" → "BCA"
+  □ fuzzyMatch(): returns null for unrecognised hint ("xyz")
+  □ adjustBalance(): correctly applies positive and negative delta
+  □ TransactionService.create() with wallet_id: wallet balance updated atomically
+  □ TransactionService.delete() with wallet_id: wallet balance reversed atomically
+  □ Transfer: both from-wallet decreases and to-wallet increases correctly
+```
+
+#### Milestone 1.6 — Savings Goals (Weeks 4–5)
 
 ```
 □ /goal set <name> <target> <date>: insert savings_goals row
@@ -1651,17 +2014,19 @@ Usage as % of free quota:   0.8%
 □ Cron: runs daily at 09:00 owner local time
 ```
 
-#### Milestone 1.6 — Recurring Transactions (Week 4)
+#### Milestone 1.7 — Recurring Transactions (Week 5)
 
 ```
 □ /recurring add: guided multi-step flow
        Step 1: description
        Step 2: amount
-       Step 3: type [💸 Expense] [💰 Income]
-       Step 4: category (inline keyboard)
-       Step 5: frequency [Daily] [Weekly] [Monthly] [Yearly]
-       Step 6: start date [Today] [Tomorrow] [Pick date]
-       Step 7: confirmation → [✅ Save] [✏️ Edit] [🗑️ Cancel]
+       Step 3: type [💸 Expense] [💰 Income] [🔄 Transfer]
+       Step 4: category (inline keyboard) — skipped for transfers
+       Step 5: wallet (inline keyboard) — source wallet
+       Step 6: to wallet (inline keyboard) — only for transfers
+       Step 7: frequency [Daily] [Weekly] [Monthly] [Yearly]
+       Step 8: start date [Today] [Tomorrow] [Pick date]
+       Step 9: confirmation → [✅ Save] [✏️ Edit] [🗑️ Cancel]
 □ /recurring list: all entries with ID, desc, amount, freq, next due date
        Inline buttons: [⏸️ Pause] [🗑️ Delete] per entry
 □ /recurring delete <id>: confirm + delete
@@ -1675,7 +2040,7 @@ Usage as % of free quota:   0.8%
 □ Transactions created by recurring have source='recurring' and recurring_id set
 ```
 
-#### Milestone 1.7 — Summary & Reports (Weeks 4–5)
+#### Milestone 1.8 — Summary & Reports (Weeks 5–6)
 
 ```
 □ /summary: current month using monthly_summary view
@@ -1690,7 +2055,7 @@ Usage as % of free quota:   0.8%
 □ All monetary values formatted via currency.js with correct symbol
 ```
 
-#### Milestone 1.8 — Multi-Currency (Week 5)
+#### Milestone 1.9 — Multi-Currency (Week 6)
 
 ```
 □ frankfurter.app API called in refreshRates() cron at 00:10 UTC
@@ -1706,7 +2071,7 @@ Usage as % of free quota:   0.8%
 □ /settings shows current base currency
 ```
 
-#### Milestone 1.9 — Export: CSV and PDF (Week 5)
+#### Milestone 1.10 — Export: CSV and PDF (Week 6)
 
 ```
 □ ReportService.generateCSV():
@@ -1729,7 +2094,7 @@ Usage as % of free quota:   0.8%
 □ /summary footer [📄 Export CSV] button triggers export flow
 ```
 
-#### Milestone 1.10 — AI Insights (Weeks 5–6)
+#### Milestone 1.11 — AI Insights (Weeks 6–7)
 
 ```
 □ InsightService.generate():
@@ -1747,12 +2112,13 @@ Usage as % of free quota:   0.8%
 □ Groq fallback applies to insights as well
 ```
 
-#### Milestone 1.11 — Settings & Custom Categories (Week 6)
+#### Milestone 1.12 — Settings & Custom Categories (Week 7)
 
 ```
 □ /settings: show all current settings as formatted list with [Edit] buttons
        Base Currency: USD [Change]
        Timezone: Asia/Jakarta [Change]
+       Default Wallet: Cash 💵 [Change]
        Daily Digest: Off [Toggle]
        Weekly Digest: Off [Toggle]
        Digest Hour: 21:00 [Change]
@@ -1771,14 +2137,17 @@ Usage as % of free quota:   0.8%
 □ All preference changes persist immediately to owner.settings
 ```
 
-#### Milestone 1.12 — QA, Testing & Hardening (Week 6)
+#### Milestone 1.13 — QA, Testing & Hardening (Week 7)
 
 ```
-□ Unit tests passing: TransactionService, BudgetService, GoalService,
+□ Unit tests passing: WalletService, TransactionService, BudgetService, GoalService,
        RecurringService, NLPService, CurrencyService, ReportService,
        formatters.ts, dateParser.ts
 □ Integration tests passing:
        Webhook → NLP → DB → Telegram reply round trip
+       Expense with wallet → balance decreases correctly
+       Transfer → from-wallet decreases, to-wallet increases, both atomic
+       Delete transaction with wallet → balance reversed correctly
        Budget alert cron with mocked date
        Recurring cron with mocked date (next_due_date advanced correctly)
        Export: CSV and PDF generated and > 0 bytes
@@ -1789,6 +2158,9 @@ Usage as % of free quota:   0.8%
        Amount > 999,999,999 → rejected with friendly message
        Future date (> 7 days ahead) → warn "Are you sure about this date?"
        Duplicate: same amount + description + date within 5 minutes → warn "Looks like a duplicate"
+       Delete wallet with transactions → blocked with clear error message
+       Transfer to same wallet → rejected: "From and To wallet must be different"
+       Transfer amount exceeding wallet balance → warn but allow (no hard block — cash overdraft is valid)
 □ Every command responds within 5 seconds (async reply pattern used for PDF/insights)
 □ All unhandled errors caught by Telegraf error handler:
        Log to Sentry
@@ -1798,6 +2170,8 @@ Usage as % of free quota:   0.8%
 □ /health endpoint returns { status: "ok", uptime: <seconds> }
 □ Better Stack uptime monitor configured for /health endpoint
 □ ✅ PHASE 1 COMPLETE — bot is fully usable as a daily personal finance tracker
+       with multi-wallet support, NLP logging, budgets, goals, recurring transactions,
+       summaries, multi-currency, CSV/PDF export, and AI insights
 ```
 
 ---
@@ -2036,6 +2410,12 @@ msw@^2.x             — mock Gemini and Groq API calls in tests
 | **Bot** | The Telegram chatbot — sole interface for this personal app |
 | **Owner** | The single user: the developer running this for personal use |
 | **Owner Gate** | Middleware that silently drops any message not from OWNER_TELEGRAM_ID |
+| **Wallet** | A named account (cash, bank, e-wallet, credit card) with a tracked balance |
+| **Transfer** | A transaction type that moves funds between two wallets (no category needed) |
+| **wallet_id** | Foreign key on transactions pointing to the source wallet |
+| **to_wallet_id** | Foreign key on transactions pointing to the destination wallet (transfers only) |
+| **Default Wallet** | The pre-selected wallet in guided flows; only one may be default at a time |
+| **adjustBalance** | Atomic wallet balance update; always called inside the same DB transaction as the owning transaction row |
 | **Webhook** | HTTPS endpoint (POST /webhook/telegram) that receives all Telegram updates |
 | **Intent** | Classified purpose of a message: LOG_EXPENSE, LOG_INCOME, UNKNOWN, etc. |
 | **Entity** | Structured value extracted from a message: amount, date, category, currency |

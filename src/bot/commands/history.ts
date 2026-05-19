@@ -28,7 +28,8 @@ export const historyHandler = async (ctx: Context) => {
 
   txs.forEach((tx, index) => {
     const sign = tx.type === 'expense' ? '-' : '+';
-    text += `${index + 1}. \`${shortId(tx.id)}\` | ${formatDateShort(tx.date)} | ${tx.category?.icon || ''} ${formatCurrency(tx.amount, curr)}\n`;
+    const walletText = tx.wallet ? ` [${tx.wallet.name}]` : '';
+    text += `${index + 1}. \`${shortId(tx.id)}\` | ${formatDateShort(tx.date)} | ${tx.category?.icon || ''} ${formatCurrency(tx.amount, curr)}${walletText}\n`;
     if (tx.description) {
       text += `   📝 *${tx.description}*\n`;
     }

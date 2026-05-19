@@ -22,14 +22,16 @@ Return null if the message is not a financial transaction.
 
 Response schema (return exactly this shape or null):
 {
-  "intent": "LOG_EXPENSE" | "LOG_INCOME",
-  "amount": number,
-  "currency": string,       // ISO 4217 code, infer from symbol or context
-  "category_hint": string | null,
-  "description": string | null,
-  "date": string,           // ISO date YYYY-MM-DD, resolve relative dates using today's date
-  "confidence": number      // 0.0 to 1.0
-}
+    "intent": "LOG_EXPENSE" | "LOG_INCOME" | "LOG_TRANSFER",
+    "amount": number,
+    "currency": string,       // ISO 4217 code, infer from symbol or context
+    "category_hint": string | null,
+    "wallet_hint": string | null,
+    "to_wallet_hint": string | null,
+    "description": string | null,
+    "date": string,           // ISO date YYYY-MM-DD, resolve relative dates using today's date
+    "confidence": number      // 0.0 to 1.0
+  }
 
 Today's date: ${new Date().toISOString().split('T')[0]}
 Owner's currency: ${ownerCurrency}

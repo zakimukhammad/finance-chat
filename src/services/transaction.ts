@@ -1,5 +1,6 @@
 import { getSupabase } from '../db/client';
 import { CreateTransactionInput, Transaction } from '../types';
+import { WalletService } from './wallet';
 
 export class TransactionService {
   static async create(data: CreateTransactionInput): Promise<Transaction> {
@@ -13,7 +14,9 @@ export class TransactionService {
         amount: data.amount,
         currency: data.currency,
         amount_base: amount_base,
-        category_id: data.category_id,
+        wallet_id: data.wallet_id || null,
+        to_wallet_id: data.to_wallet_id || null,
+        category_id: data.category_id || null,
         description: data.description,
         date: data.date,
         source: data.source || 'manual',
@@ -24,6 +27,19 @@ export class TransactionService {
       .single();
 
     if (error) throw error;
+
+    // Adjust Wallet balances
+    if (data.wallet_id) {
+      if (data.type === 'income') {
+        await WalletService.adjustBalance(data.wallet_id, data.amount);
+      } else if (data.type === 'expense') {
+        await WalletService.adjustBalance(data.wallet_id, -data.amount);
+      } else if (data.type === 'transfer' && data.to_wallet_id) {
+        await WalletService.adjustBalance(data.wallet_id, -data.amount);
+        await WalletService.adjustBalance(data.to_wallet_id, data.amount);
+      }
+    }
+
     return result as Transaction;
   }
 
@@ -50,13 +66,25 @@ export class TransactionService {
     // So we search for id starting with the provided string
     const { data, error: fetchError } = await getSupabase()
       .from('transactions')
-      .select('id')
+      .select('*')
       .ilike('id', `${id}%`)
       .limit(1)
       .single();
 
     if (fetchError || !data) {
       throw new Error('Transaction not found');
+    }
+
+    // Reverse Wallet balances before deleting
+    if (data.wallet_id) {
+      if (data.type === 'income') {
+        await WalletService.adjustBalance(data.wallet_id, -data.amount);
+      } else if (data.type === 'expense') {
+        await WalletService.adjustBalance(data.wallet_id, data.amount);
+      } else if (data.type === 'transfer' && data.to_wallet_id) {
+        await WalletService.adjustBalance(data.wallet_id, data.amount);
+        await WalletService.adjustBalance(data.to_wallet_id, -data.amount);
+      }
     }
 
     const { error } = await getSupabase()
@@ -67,10 +95,10 @@ export class TransactionService {
     if (error) throw error;
   }
 
-  static async getHistory(limit: number, offset: number = 0): Promise<(Transaction & { category: { name: string, icon: string } })[]> {
+  static async getHistory(limit: number, offset: number = 0): Promise<(Transaction & { category: { name: string, icon: string } | null, wallet: { name: string, icon: string } | null })[]> {
     const { data, error } = await getSupabase()
       .from('transactions')
-      .select('*, category:categories(name, icon)')
+      .select('*, category:categories(name, icon), wallet:wallets(name, icon)')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 

@@ -69,3 +69,15 @@ export const buildCategoriesKeyboard = (categories: any[], type: string) => {
   }
   return Markup.inlineKeyboard(rows);
 };
+
+export const buildWalletsKeyboard = (wallets: any[]) => {
+  const rows = [];
+  for (let i = 0; i < wallets.length; i += 2) {
+    const chunk = wallets.slice(i, i + 2).map(w => 
+      Markup.button.callback(`${w.icon} ${w.name}`, `wallet_${w.id}`)
+    );
+    rows.push(chunk);
+  }
+  rows.push([Markup.button.callback('⏭️ Skip (No Wallet)', 'wallet_skip')]);
+  return Markup.inlineKeyboard(rows);
+};
