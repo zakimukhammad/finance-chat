@@ -6,17 +6,22 @@ export const helpHandler = async (ctx: Context) => {
 \`<free text>\`           - Log via NLP (e.g. spent 50 on lunch)
 \`/add expense\`        - Guided expense entry
 \`/add income\`         - Guided income entry
+\`/add transfer\`       - Guided transfer between wallets
 \`/history\`            - Show last 10 transactions
 \`/history <N>\`        - Show last N transactions (max 50)
 \`/delete last\`        - Delete most recent transaction
 \`/delete <id>\`        - Delete transaction by short ID
 \`/edit last\`          - Edit most recent transaction
-\`/summary\`            - Current month summary
+\`/summary\`            - Current month summary (includes Wallet Balances)
 \`/summary week\`       - Current week summary
 \`/summary today\`      - Today's transactions
 \`/summary <YYYY-MM>\`  - Summary for specific month
 \`/budget set <cat> <amt>\` - Set monthly budget
 \`/budget status\`      - View budgets usage
+\`/wallet\`              - Manage wallets & create a new one
+\`/wallets\`             - View all wallet balances
+\`/wallet delete <name>\` - Delete a wallet
+\`/wallet rename <old> <new>\` - Rename a wallet
 \`/goal list\`          - List savings goals
 \`/recurring list\`     - List recurring entries
 \`/export csv\`         - Export transactions as CSV
