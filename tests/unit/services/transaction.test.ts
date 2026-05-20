@@ -13,6 +13,8 @@ const mockSupabase = {
   eq: vi.fn().mockReturnThis(),
   ilike: vi.fn().mockReturnThis(),
   limit: vi.fn().mockReturnThis(),
+  order: vi.fn().mockReturnThis(),
+  range: vi.fn().mockReturnThis(),
   single: vi.fn(),
 };
 
@@ -128,6 +130,30 @@ describe('TransactionService', () => {
       // Verify that reversal is done with +50, and new adjustment with -80
       expect(adjustSpy).toHaveBeenNthCalledWith(1, 'wallet-1', 50);
       expect(adjustSpy).toHaveBeenNthCalledWith(2, 'wallet-1', -80);
+    });
+  });
+
+  describe('getHistory', () => {
+    it('successfully queries transactions with category and wallet associations', async () => {
+      const mockData = [
+        {
+          id: 'tx-123',
+          type: 'expense',
+          amount: 50,
+          category: { name: 'Food', icon: '🍔' },
+          wallet: { name: 'Cash', icon: '💵' },
+        },
+      ];
+      mockSupabase.range.mockResolvedValueOnce({
+        data: mockData,
+        error: null,
+      });
+
+      const result = await TransactionService.getHistory(5);
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('transactions');
+      expect(mockSupabase.select).toHaveBeenCalledWith('*, category:categories(name, icon), wallet:wallets!wallet_id(name, icon)');
+      expect(result).toEqual(mockData);
     });
   });
 });

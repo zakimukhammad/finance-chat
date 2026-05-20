@@ -148,7 +148,7 @@ export class TransactionService {
   static async getHistory(limit: number, offset: number = 0): Promise<(Transaction & { category: { name: string, icon: string } | null, wallet: { name: string, icon: string } | null })[]> {
     const { data, error } = await getSupabase()
       .from('transactions')
-      .select('*, category:categories(name, icon), wallet:wallets(name, icon)')
+      .select('*, category:categories(name, icon), wallet:wallets!wallet_id(name, icon)')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
