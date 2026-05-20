@@ -38,11 +38,14 @@ export const handleAddFlow = async (ctx: Context, state: any, text: string) => {
 
     if (context.type === 'transfer') {
       const wallets = await WalletService.list();
+      const telegramId = ctx.from?.id;
+      const owner = telegramId ? await OwnerService.getOwner(telegramId) : null;
+      const defaultWalletId = owner?.settings?.default_wallet_id || null;
       await (ctx as any).setConversationState({
         state: 'add_from_wallet',
         context: { ...context, amount }
       });
-      await ctx.reply('Select FROM wallet:', buildWalletsKeyboard(wallets));
+      await ctx.reply('Select FROM wallet:', buildWalletsKeyboard(wallets, defaultWalletId));
     } else {
       const categories = await CategoryService.getByType(context.type);
       await (ctx as any).setConversationState({
@@ -74,6 +77,9 @@ export const handleAddCallback = async (ctx: Context, action: string, data: stri
     if (!category) return;
 
     const wallets = await WalletService.list();
+    const telegramId = ctx.from?.id;
+    const owner = telegramId ? await OwnerService.getOwner(telegramId) : null;
+    const defaultWalletId = owner?.settings?.default_wallet_id || null;
 
     if (wallets.length === 1) {
       // Auto-select if only 1 wallet exists
@@ -83,11 +89,22 @@ export const handleAddCallback = async (ctx: Context, action: string, data: stri
       });
       await ctx.editMessageText('Select date:', buildDateKeyboard());
     } else if (wallets.length > 1) {
+      const defaultWallet = wallets.find(w => w.id === defaultWalletId);
       await (ctx as any).setConversationState({
         state: 'add_wallet',
-        context: { ...context, category_id: category.id, category_name: category.name, category_icon: category.icon }
+        context: {
+          ...context,
+          category_id: category.id,
+          category_name: category.name,
+          category_icon: category.icon,
+          ...(defaultWallet ? {
+            wallet_id: defaultWallet.id,
+            wallet_name: defaultWallet.name,
+            wallet_icon: defaultWallet.icon
+          } : {})
+        }
       });
-      await ctx.editMessageText('Which wallet?', buildWalletsKeyboard(wallets));
+      await ctx.editMessageText('Which wallet?', buildWalletsKeyboard(wallets, defaultWalletId));
     } else {
       // No wallets exist, skip
       await (ctx as any).setConversationState({
@@ -100,7 +117,12 @@ export const handleAddCallback = async (ctx: Context, action: string, data: stri
     if (data === 'skip') {
       await (ctx as any).setConversationState({
         state: 'add_date',
-        context: { ...context }
+        context: {
+          ...context,
+          wallet_id: undefined,
+          wallet_name: undefined,
+          wallet_icon: undefined
+        }
       });
     } else {
       const wallets = await WalletService.list();
@@ -184,7 +206,24 @@ export const handleAddCallback = async (ctx: Context, action: string, data: stri
       });
 
       await (ctx as any).clearConversationState();
-      await ctx.editMessageText(`Saved! 📊\nTransaction ID: \`${tx.id.split('-')[0]}\``, {
+
+      let balanceInfo = '';
+      if (context.type === 'transfer' && context.wallet_id && context.to_wallet_id) {
+        const wallets = await WalletService.list();
+        const fromW = wallets.find(w => w.id === context.wallet_id);
+        const toW = wallets.find(w => w.id === context.to_wallet_id);
+        if (fromW && toW) {
+          balanceInfo = `\n\n💳 Balances:\n• ${fromW.icon} ${fromW.name}: ${formatCurrency(fromW.balance, fromW.currency)}\n• ${toW.icon} ${toW.name}: ${formatCurrency(toW.balance, toW.currency)}`;
+        }
+      } else if (context.wallet_id) {
+        const wallets = await WalletService.list();
+        const w = wallets.find(w => w.id === context.wallet_id);
+        if (w) {
+          balanceInfo = `\n\n💳 Balance:\n• ${w.icon} ${w.name}: ${formatCurrency(w.balance, w.currency)}`;
+        }
+      }
+
+      await ctx.editMessageText(`Saved! 📊${balanceInfo}\n\nTransaction ID: \`${tx.id.split('-')[0]}\``, {
         parse_mode: 'Markdown',
         reply_markup: buildConfirmationKeyboard(tx.id).reply_markup
       });

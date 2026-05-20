@@ -60,6 +60,7 @@ export const DEFAULT_OWNER_SETTINGS = {
   weekly_digest: false,
   digest_hour: 21,
   show_budget_in_summary: true,
+  default_wallet_id: null,
 };
 
 // ─── App Constants ──────────────────────────────────────────────────────────

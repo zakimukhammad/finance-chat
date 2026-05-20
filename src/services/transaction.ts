@@ -44,7 +44,30 @@ export class TransactionService {
   }
 
   static async update(id: string, data: Partial<CreateTransactionInput>): Promise<Transaction> {
-    // Recalculate amount_base if amount changes (assuming 1:1 for now)
+    // 1. Fetch original transaction to reverse its balance effects
+    const { data: original, error: fetchError } = await getSupabase()
+      .from('transactions')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !original) {
+      throw new Error('Transaction not found');
+    }
+
+    // 2. Reverse old wallet adjustments
+    if (original.wallet_id) {
+      if (original.type === 'income') {
+        await WalletService.adjustBalance(original.wallet_id, -original.amount);
+      } else if (original.type === 'expense' || original.type === 'transfer') {
+        await WalletService.adjustBalance(original.wallet_id, original.amount);
+      }
+    }
+    if (original.to_wallet_id && original.type === 'transfer') {
+      await WalletService.adjustBalance(original.to_wallet_id, -original.amount);
+    }
+
+    // 3. Perform the update
     const updateData: any = { ...data };
     if (data.amount !== undefined) {
       updateData.amount_base = data.amount;
@@ -57,8 +80,35 @@ export class TransactionService {
       .select()
       .single();
 
-    if (error) throw error;
-    return result as Transaction;
+    if (error) {
+      // Revert reversal on DB error
+      if (original.wallet_id) {
+        if (original.type === 'income') {
+          await WalletService.adjustBalance(original.wallet_id, original.amount);
+        } else if (original.type === 'expense' || original.type === 'transfer') {
+          await WalletService.adjustBalance(original.wallet_id, -original.amount);
+        }
+      }
+      if (original.to_wallet_id && original.type === 'transfer') {
+        await WalletService.adjustBalance(original.to_wallet_id, original.amount);
+      }
+      throw error;
+    }
+
+    // 4. Apply new wallet adjustments
+    const updated = result as Transaction;
+    if (updated.wallet_id) {
+      if (updated.type === 'income') {
+        await WalletService.adjustBalance(updated.wallet_id, updated.amount);
+      } else if (updated.type === 'expense' || updated.type === 'transfer') {
+        await WalletService.adjustBalance(updated.wallet_id, -updated.amount);
+      }
+    }
+    if (updated.to_wallet_id && updated.type === 'transfer') {
+      await WalletService.adjustBalance(updated.to_wallet_id, updated.amount);
+    }
+
+    return updated as Transaction;
   }
 
   static async delete(id: string): Promise<void> {

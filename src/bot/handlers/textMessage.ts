@@ -24,6 +24,12 @@ export const textMessageHandler = async (ctx: Context) => {
       return;
     }
 
+    if (state.state.startsWith('onboarding_wallet_')) {
+      const { handleOnboardingText } = await import('../commands/start');
+      const handled = await handleOnboardingText(ctx, state, text);
+      if (handled) return;
+    }
+
     // NLP confirmation flow: user said "yes" or "no"
     if (state.state === 'nlp_confirm') {
       const lower = text.trim().toLowerCase();
@@ -181,6 +187,23 @@ async function autoProcessNlp(ctx: Context, parsed: any, ownerCurrency: string) 
     walletLine = `💳 Wallet: ${wallet.icon} ${wallet.name}\n`;
   }
 
+  // Re-fetch wallets to get updated balances
+  let balanceInfo = '';
+  if (type === 'transfer' && wallet && toWallet) {
+    const wallets = await WalletService.list();
+    const fromW = wallets.find(w => w.id === wallet.id);
+    const toW = wallets.find(w => w.id === toWallet.id);
+    if (fromW && toW) {
+      balanceInfo = `\n💳 Balances:\n• ${fromW.icon} ${fromW.name}: ${formatCurrency(fromW.balance, fromW.currency)}\n• ${toW.icon} ${toW.name}: ${formatCurrency(toW.balance, toW.currency)}`;
+    }
+  } else if (wallet) {
+    const wallets = await WalletService.list();
+    const w = wallets.find(w => w.id === wallet.id);
+    if (w) {
+      balanceInfo = `\n💳 Balance:\n• ${w.icon} ${w.name}: ${formatCurrency(w.balance, w.currency)}`;
+    }
+  }
+
   const text =
     `✅ Logged!\n\n` +
     `${type === 'expense' ? '💸' : type === 'income' ? '💰' : '🔄'} ${formatCurrency(parsed.amount, parsed.currency || ownerCurrency)}\n` +
@@ -188,6 +211,7 @@ async function autoProcessNlp(ctx: Context, parsed: any, ownerCurrency: string) 
     walletLine +
     `📅 ${formatDate(parsed.date)}\n` +
     (parsed.description ? `📝 ${parsed.description}\n` : '') + budgetStr +
+    balanceInfo +
     `\n\nID: \`${tx.id.split('-')[0]}\``;
 
   await ctx.reply(text, {
@@ -343,8 +367,25 @@ async function saveNlpTransaction(ctx: Context, nlpContext: any) {
     walletLine = `\n💳 Wallet: ${nlpContext.wallet_icon} ${nlpContext.wallet_name}`;
   }
 
+  // Re-fetch wallets to get updated balances
+  let balanceInfo = '';
+  if (type === 'transfer' && nlpContext.wallet_id && nlpContext.to_wallet_id) {
+    const wallets = await WalletService.list();
+    const fromW = wallets.find(w => w.id === nlpContext.wallet_id);
+    const toW = wallets.find(w => w.id === nlpContext.to_wallet_id);
+    if (fromW && toW) {
+      balanceInfo = `\n\n💳 Balances:\n• ${fromW.icon} ${fromW.name}: ${formatCurrency(fromW.balance, fromW.currency)}\n• ${toW.icon} ${toW.name}: ${formatCurrency(toW.balance, toW.currency)}`;
+    }
+  } else if (nlpContext.wallet_id) {
+    const wallets = await WalletService.list();
+    const w = wallets.find(w => w.id === nlpContext.wallet_id);
+    if (w) {
+      balanceInfo = `\n\n💳 Balance:\n• ${w.icon} ${w.name}: ${formatCurrency(w.balance, w.currency)}`;
+    }
+  }
+
   await ctx.reply(
-    `✅ Saved!${walletLine}${budgetStr}\n\n` +
+    `✅ Saved!${walletLine}${budgetStr}${balanceInfo}\n\n` +
     `ID: \`${tx.id.split('-')[0]}\``,
     {
       parse_mode: 'Markdown',

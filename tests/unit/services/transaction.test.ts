@@ -107,4 +107,27 @@ describe('TransactionService', () => {
       expect(adjustSpy).toHaveBeenNthCalledWith(2, 'wallet-2', -30);
     });
   });
+
+  describe('update with wallet adjustments and reversals', () => {
+    it('reverses old balance and applies new balance on amount edit', async () => {
+      // 1st call to single(): fetch original
+      mockSupabase.single.mockResolvedValueOnce({
+        data: { id: 'tx-123', type: 'expense', amount: 50, wallet_id: 'wallet-1' },
+        error: null,
+      });
+      // 2nd call to single(): return updated transaction
+      mockSupabase.single.mockResolvedValueOnce({
+        data: { id: 'tx-123', type: 'expense', amount: 80, wallet_id: 'wallet-1' },
+        error: null,
+      });
+
+      const adjustSpy = vi.spyOn(WalletService, 'adjustBalance').mockResolvedValue(undefined as any);
+
+      await TransactionService.update('tx-123', { amount: 80 });
+
+      // Verify that reversal is done with +50, and new adjustment with -80
+      expect(adjustSpy).toHaveBeenNthCalledWith(1, 'wallet-1', 50);
+      expect(adjustSpy).toHaveBeenNthCalledWith(2, 'wallet-1', -80);
+    });
+  });
 });

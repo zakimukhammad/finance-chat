@@ -1,7 +1,7 @@
 import { Telegraf } from 'telegraf';
 import { ownerGate } from './middleware/ownerGate';
 import { conversationState } from './middleware/conversationState';
-import { startHandler, handleCurrencySelection, handleTimezoneSelection } from './commands/start';
+import { startHandler, handleCurrencySelection, handleTimezoneSelection, handleOnboardingWalletSelection } from './commands/start';
 import { helpHandler } from './commands/help';
 import { addHandler, handleAddCallback } from './commands/add';
 import { historyHandler, deleteHandler, editHandler } from './commands/history';
@@ -61,6 +61,8 @@ export function createBot(): Telegraf {
       await handleCurrencySelection(ctx, data.replace('currency_', ''));
     } else if (data.startsWith('tz_')) {
       await handleTimezoneSelection(ctx, data.replace('tz_', ''));
+    } else if (data.startsWith('onbwallet_')) {
+      await handleOnboardingWalletSelection(ctx, data.replace('onbwallet_', ''));
     } else if (data.startsWith('cat_')) {
       const categoryId = data.replace('cat_', '');
       const handledNlp = await handleNlpCategoryCallback(ctx, categoryId);

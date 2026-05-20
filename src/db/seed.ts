@@ -77,6 +77,31 @@ async function seed(): Promise<void> {
     }
   }
 
+  // ─── Seed Default Wallet ────────────────────────────────────────────────
+  const { data: existingWallets } = await supabase
+    .from('wallets')
+    .select('id')
+    .eq('name', 'Cash');
+
+  if (!existingWallets || existingWallets.length === 0) {
+    const { error: walletError } = await supabase.from('wallets').insert({
+      name: 'Cash',
+      icon: '💵',
+      type: 'cash',
+      currency: 'IDR',
+      balance: 0,
+      is_default: true,
+      sort_order: 0,
+    });
+    if (walletError) {
+      logger.error({ error: walletError }, 'Failed to insert default Cash wallet');
+    } else {
+      logger.info('Inserted default Cash wallet');
+    }
+  } else {
+    logger.debug('Default Cash wallet already exists, skipping');
+  }
+
   logger.info('Database seed complete');
 }
 
