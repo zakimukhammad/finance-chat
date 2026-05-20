@@ -78,6 +78,8 @@ export function createBot(): Telegraf {
       await handleAddCallback(ctx, 'confirm', data.replace('confirm_', ''));
     } else if (data.startsWith('undo_')) {
       await handleAddCallback(ctx, 'undo', data.replace('undo_', ''));
+    } else if (data.startsWith('wallet_')) {
+      await handleAddCallback(ctx, 'wallet', data.replace('wallet_', ''));
     } else if (data.startsWith('wicon_') || data.startsWith('wtype_') || data.startsWith('wdef_')) {
       const action = data.split('_')[0];
       const val = data.replace(`${action}_`, '');

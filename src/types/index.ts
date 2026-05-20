@@ -97,6 +97,7 @@ export interface SavingsGoal {
   name: string;
   target_amount: number;
   current_amount: number;
+  wallet_id: string | null;   // optional: link goal to a specific wallet
   deadline: string | null;  // ISO date
   status: GoalStatus;
   created_at: string;
@@ -110,6 +111,8 @@ export interface RecurringTransaction {
   amount: number;
   type: TransactionType;
   category_id: string;
+  wallet_id: string | null;   // wallet to debit/credit on auto-log
+  to_wallet_id: string | null;// for recurring transfers
   frequency: RecurringFrequency;
   next_due_date: string;    // ISO date
   active: boolean;
@@ -203,6 +206,27 @@ export interface CreateRecurringInput {
   amount: number;
   type: TransactionType;
   category_id: string;
+  wallet_id?: string | null;
+  to_wallet_id?: string | null;
   frequency: RecurringFrequency;
   next_due_date: string;
+}
+
+// ─── Summary Types ──────────────────────────────────────────────────────────
+
+export interface CategorySummary {
+  category_id: string;
+  category_name: string;
+  icon: string;
+  total: number;
+  txn_count: number;
+  percentage: number;        // 0–100
+}
+
+export interface SummaryResult {
+  period: string;            // e.g. "2026-05-01 to 2026-05-31"
+  total_income: number;
+  total_expense: number;
+  net: number;
+  by_category: CategorySummary[];
 }
