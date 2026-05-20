@@ -24,6 +24,12 @@ export const textMessageHandler = async (ctx: Context) => {
       return;
     }
 
+    if (state.state.startsWith('recurring_add_') || state.state === 'recdue_edit_amount') {
+      const { handleRecurringTextFlow } = await import('../commands/recurring');
+      await handleRecurringTextFlow(ctx, state, text);
+      return;
+    }
+
     if (state.state.startsWith('onboarding_wallet_')) {
       const { handleOnboardingText } = await import('../commands/start');
       const handled = await handleOnboardingText(ctx, state, text);

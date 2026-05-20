@@ -9,6 +9,7 @@ import { budgetHandler, handleBudgetCallback } from './commands/budget';
 import { walletHandler, handleWalletCallback } from './commands/wallets';
 import { summaryHandler } from './commands/summary';
 import { goalHandler, handleGoalCallback } from './commands/goals';
+import { recurringHandler, handleRecurringCallback } from './commands/recurring';
 import { textMessageHandler, handleNlpCategoryCallback } from './handlers/textMessage';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from '../utils/logger';
@@ -54,6 +55,7 @@ export function createBot(): Telegraf {
   bot.command('summary', summaryHandler);
   bot.command('goal', goalHandler);
   bot.command('goals', goalHandler);
+  bot.command('recurring', recurringHandler);
 
   // ─── Callbacks & Messages ───────────────────────────────────────────────
   bot.on('callback_query', async (ctx) => {
@@ -89,10 +91,25 @@ export function createBot(): Telegraf {
       await handleWalletCallback(ctx, action, val);
     } else if (data.startsWith('goal_')) {
       await handleGoalCallback(ctx, data);
+    } else if (
+      data.startsWith('recfreq_') ||
+      data.startsWith('rectype_') ||
+      data.startsWith('recconfirm_') ||
+      data.startsWith('recdate_') ||
+      data.startsWith('recwallet_') ||
+      data.startsWith('rectowallet_') ||
+      data.startsWith('reccat_') ||
+      data.startsWith('reccall_') ||
+      data.startsWith('recdue_')
+    ) {
+      const action = data.split('_')[0];
+      const val = data.replace(`${action}_`, '');
+      await handleRecurringCallback(ctx, action, val);
     }
     
     await ctx.answerCbQuery().catch(() => {});
   });
+
 
   bot.on('text', textMessageHandler);
 

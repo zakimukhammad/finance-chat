@@ -83,3 +83,46 @@ export const buildWalletsKeyboard = (wallets: any[], defaultWalletId?: string | 
   rows.push([Markup.button.callback('⏭️ Skip (No Wallet)', 'wallet_skip')]);
   return Markup.inlineKeyboard(rows);
 };
+
+export const buildFrequencyKeyboard = () => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('Daily', 'recfreq_daily'),
+      Markup.button.callback('Weekly', 'recfreq_weekly'),
+    ],
+    [
+      Markup.button.callback('Monthly', 'recfreq_monthly'),
+      Markup.button.callback('Yearly', 'recfreq_yearly'),
+    ]
+  ]);
+};
+
+export const buildRecurringTypeKeyboard = () => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('💸 Expense', 'rectype_expense'),
+      Markup.button.callback('💰 Income', 'rectype_income'),
+      Markup.button.callback('🔄 Transfer', 'rectype_transfer'),
+    ]
+  ]);
+};
+
+export const buildRecurringConfirmKeyboard = () => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('✅ Save', 'recconfirm_save'),
+      Markup.button.callback('✏️ Edit', 'recconfirm_edit'),
+      Markup.button.callback('🗑️ Cancel', 'recconfirm_cancel'),
+    ]
+  ]);
+};
+
+export const buildStartDateKeyboard = () => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('📅 Today', 'recdate_today'),
+      Markup.button.callback('⬅️ Tomorrow', 'recdate_tomorrow'),
+    ]
+  ]);
+};
+
