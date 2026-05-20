@@ -8,6 +8,7 @@ import { historyHandler, deleteHandler, editHandler } from './commands/history';
 import { budgetHandler, handleBudgetCallback } from './commands/budget';
 import { walletHandler, handleWalletCallback } from './commands/wallets';
 import { summaryHandler } from './commands/summary';
+import { goalHandler, handleGoalCallback } from './commands/goals';
 import { textMessageHandler, handleNlpCategoryCallback } from './handlers/textMessage';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from '../utils/logger';
@@ -51,6 +52,8 @@ export function createBot(): Telegraf {
   bot.command('wallet', walletHandler);
   bot.command('wallets', walletHandler);
   bot.command('summary', summaryHandler);
+  bot.command('goal', goalHandler);
+  bot.command('goals', goalHandler);
 
   // ─── Callbacks & Messages ───────────────────────────────────────────────
   bot.on('callback_query', async (ctx) => {
@@ -84,6 +87,8 @@ export function createBot(): Telegraf {
       const action = data.split('_')[0];
       const val = data.replace(`${action}_`, '');
       await handleWalletCallback(ctx, action, val);
+    } else if (data.startsWith('goal_')) {
+      await handleGoalCallback(ctx, data);
     }
     
     await ctx.answerCbQuery().catch(() => {});

@@ -59,6 +59,13 @@ export const textMessageHandler = async (ctx: Context) => {
       if (handled) return;
     }
 
+    // Goal setup flow: user typing goal inputs
+    if (state.state && state.state.startsWith('goal_')) {
+      const { handleGoalTextFlow } = await import('../commands/goals');
+      const handled = await handleGoalTextFlow(ctx, state, text);
+      if (handled) return;
+    }
+
     // NLP category selection flow: user picked a type
     if (state.state === 'nlp_pick_type') {
       const lower = text.trim().toLowerCase();
