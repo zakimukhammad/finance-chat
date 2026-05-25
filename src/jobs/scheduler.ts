@@ -3,6 +3,7 @@ import { Telegraf } from 'telegraf';
 import { BudgetService } from '../services/budget';
 import { GoalService } from '../services/goal';
 import { RecurringService } from '../services/recurring';
+import { CurrencyService } from '../services/currency';
 import { getSupabase } from '../db/client';
 import { logger } from '../utils/logger';
 
@@ -57,7 +58,15 @@ export function registerJobs(bot: Telegraf): void {
     }
   })();
 
-  // (Placeholders for Milestone 1.7 - Currency, Milestone 1.8 - Digests)
+  // Refresh exchange rates every day at 00:10 UTC (Milestone 1.9)
+  cron.schedule('10 0 * * *', () => {
+    logger.info('Running daily exchange rates refresh');
+    CurrencyService.refreshRates().catch(err => {
+      logger.error({ err }, 'Exchange rates refresh failed');
+    });
+  }, { timezone: 'UTC' });
+
+  // (Placeholders for Milestone 1.8 - Digests)
   logger.info('All cron jobs registered successfully');
 }
 

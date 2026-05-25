@@ -3,9 +3,25 @@ import { TransactionService } from '../../../src/services/transaction';
 import { WalletService } from '../../../src/services/wallet';
 import * as client from '../../../src/db/client';
 
+// Mock CurrencyService to avoid network calls and return a 1:1 rate
+vi.mock('../../../src/services/currency', () => ({
+  CurrencyService: {
+    convert: vi.fn(async (amount: number) => amount),
+    getRate: vi.fn(async () => 1.0),
+  }
+}));
+
 // Mock Supabase client
+const mockOwner = {
+  select: vi.fn().mockReturnThis(),
+  single: vi.fn().mockResolvedValue({ data: { currency: 'USD' }, error: null }),
+};
+
 const mockSupabase = {
-  from: vi.fn().mockReturnThis(),
+  from: vi.fn().mockImplementation((table) => {
+    if (table === 'owner') return mockOwner;
+    return mockSupabase;
+  }),
   insert: vi.fn().mockReturnThis(),
   update: vi.fn().mockReturnThis(),
   delete: vi.fn().mockReturnThis(),

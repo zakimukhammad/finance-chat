@@ -11,6 +11,7 @@ import { summaryHandler } from './commands/summary';
 import { goalHandler, handleGoalCallback } from './commands/goals';
 import { recurringHandler, handleRecurringCallback } from './commands/recurring';
 import { textMessageHandler, handleNlpCategoryCallback } from './handlers/textMessage';
+import { settingsHandler, currencyHandler } from './commands/settings';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from '../utils/logger';
 
@@ -56,6 +57,8 @@ export function createBot(): Telegraf {
   bot.command('goal', goalHandler);
   bot.command('goals', goalHandler);
   bot.command('recurring', recurringHandler);
+  bot.command('settings', settingsHandler);
+  bot.command('currency', currencyHandler);
 
   // ─── Callbacks & Messages ───────────────────────────────────────────────
   bot.on('callback_query', async (ctx) => {
@@ -63,7 +66,14 @@ export function createBot(): Telegraf {
     if (!data) return;
 
     if (data.startsWith('currency_')) {
-      await handleCurrencySelection(ctx, data.replace('currency_', ''));
+      const currencyCode = data.replace('currency_', '');
+      const state = (ctx as any).conversationState;
+      if (state?.state === 'onboarding_currency') {
+        await handleCurrencySelection(ctx, currencyCode);
+      } else {
+        const { handleCurrencyCallback } = await import('./commands/settings');
+        await handleCurrencyCallback(ctx, currencyCode);
+      }
     } else if (data.startsWith('tz_')) {
       await handleTimezoneSelection(ctx, data.replace('tz_', ''));
     } else if (data.startsWith('onbwallet_')) {

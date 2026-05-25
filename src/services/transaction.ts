@@ -16,8 +16,15 @@ export class TransactionService {
       throw new Error('From and To wallet must be different.');
     }
 
-    // For Milestone 1.2, amount_base is just amount (multi-currency in 1.9)
-    const amount_base = data.amount;
+    // Retrieve owner base currency and convert to base currency
+    const { data: owner } = await getSupabase()
+      .from('owner')
+      .select('currency')
+      .single();
+    const ownerCurrency = owner?.currency || 'USD';
+
+    const { CurrencyService } = await import('./currency');
+    const amount_base = await CurrencyService.convert(data.amount, data.currency, ownerCurrency);
 
     const { data: result, error } = await getSupabase()
       .from('transactions')
@@ -81,8 +88,18 @@ export class TransactionService {
 
     // 3. Perform the update
     const updateData: any = { ...data };
-    if (data.amount !== undefined) {
-      updateData.amount_base = data.amount;
+    if (data.amount !== undefined || data.currency !== undefined) {
+      const amountToConvert = data.amount !== undefined ? data.amount : original.amount;
+      const currencyToConvert = data.currency !== undefined ? data.currency : original.currency;
+
+      const { data: owner } = await getSupabase()
+        .from('owner')
+        .select('currency')
+        .single();
+      const ownerCurrency = owner?.currency || 'USD';
+
+      const { CurrencyService } = await import('./currency');
+      updateData.amount_base = await CurrencyService.convert(amountToConvert, currencyToConvert, ownerCurrency);
     }
 
     const { data: result, error } = await getSupabase()

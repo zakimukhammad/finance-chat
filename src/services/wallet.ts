@@ -197,13 +197,11 @@ export class WalletService {
    */
   static async getTotalNetWorth(baseCurrency: string): Promise<number> {
     const wallets = await this.list();
-    // For M1.5, assuming single currency or mock exchange rate
-    // Milestone 1.9 adds Multi-Currency properly
+    const { CurrencyService } = await import('./currency');
     let total = 0;
     for (const w of wallets) {
-      // If currency matches, add directly. Otherwise, we'd need exchange rates.
-      // Assuming 1:1 for now if no currency module is fully active.
-      total += Number(w.balance); 
+      const converted = await CurrencyService.convert(Number(w.balance), w.currency, baseCurrency);
+      total += converted;
     }
     return total;
   }
