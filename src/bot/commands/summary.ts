@@ -195,8 +195,10 @@ export const summaryHandler = async (ctx: Context) => {
 
   // ─── 8. Send with footer buttons ────────────────────────────────────────
 
+  const exportPeriod = isMonthPeriod ? format(refDate, 'yyyy-MM') : undefined;
+
   await ctx.reply(text, {
     parse_mode: 'Markdown',
-    ...buildSummaryFooterKeyboard(),
+    ...buildSummaryFooterKeyboard(exportPeriod),
   });
 };

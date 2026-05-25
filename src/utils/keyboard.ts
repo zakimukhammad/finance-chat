@@ -126,11 +126,12 @@ export const buildStartDateKeyboard = () => {
   ]);
 };
 
-export const buildSummaryFooterKeyboard = () => {
+export const buildSummaryFooterKeyboard = (period?: string) => {
+  const periodSuffix = period && /^\d{4}-\d{2}$/.test(period) ? `_${period}` : '';
   return Markup.inlineKeyboard([
     [
-      Markup.button.callback('📄 Export CSV', 'summary_exportcsv'),
-      Markup.button.callback('📑 Export PDF', 'summary_exportpdf'),
+      Markup.button.callback('📄 Export CSV', `summary_exportcsv${periodSuffix}`),
+      Markup.button.callback('📑 Export PDF', `summary_exportpdf${periodSuffix}`),
       Markup.button.callback('💡 Insights', 'summary_insights'),
     ]
   ]);

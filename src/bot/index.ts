@@ -12,6 +12,7 @@ import { goalHandler, handleGoalCallback } from './commands/goals';
 import { recurringHandler, handleRecurringCallback } from './commands/recurring';
 import { textMessageHandler, handleNlpCategoryCallback } from './handlers/textMessage';
 import { settingsHandler, currencyHandler } from './commands/settings';
+import { exportHandler } from './commands/export';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from '../utils/logger';
 
@@ -54,6 +55,7 @@ export function createBot(): Telegraf {
   bot.command('wallet', walletHandler);
   bot.command('wallets', walletHandler);
   bot.command('summary', summaryHandler);
+  bot.command('export', exportHandler);
   bot.command('goal', goalHandler);
   bot.command('goals', goalHandler);
   bot.command('recurring', recurringHandler);
@@ -115,10 +117,14 @@ export function createBot(): Telegraf {
       const action = data.split('_')[0];
       const val = data.replace(`${action}_`, '');
       await handleRecurringCallback(ctx, action, val);
-    } else if (data === 'summary_exportcsv') {
-      await ctx.reply('📄 CSV export coming soon! (Milestone 1.10)');
-    } else if (data === 'summary_exportpdf') {
-      await ctx.reply('📑 PDF export coming soon! (Milestone 1.10)');
+    } else if (data.startsWith('summary_exportcsv')) {
+      const yearMonth = data.replace('summary_exportcsv', '').replace(/^_/, '') || undefined;
+      const { runExport } = await import('./commands/export');
+      await runExport(ctx, 'csv', yearMonth);
+    } else if (data.startsWith('summary_exportpdf')) {
+      const yearMonth = data.replace('summary_exportpdf', '').replace(/^_/, '') || undefined;
+      const { runExport } = await import('./commands/export');
+      await runExport(ctx, 'pdf', yearMonth);
     } else if (data === 'summary_insights') {
       await ctx.reply('💡 AI insights coming soon! (Milestone 1.11)');
     }
