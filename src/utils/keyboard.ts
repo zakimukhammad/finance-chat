@@ -126,3 +126,13 @@ export const buildStartDateKeyboard = () => {
   ]);
 };
 
+export const buildSummaryFooterKeyboard = () => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('📄 Export CSV', 'summary_exportcsv'),
+      Markup.button.callback('📑 Export PDF', 'summary_exportpdf'),
+      Markup.button.callback('💡 Insights', 'summary_insights'),
+    ]
+  ]);
+};
+

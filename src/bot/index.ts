@@ -105,6 +105,12 @@ export function createBot(): Telegraf {
       const action = data.split('_')[0];
       const val = data.replace(`${action}_`, '');
       await handleRecurringCallback(ctx, action, val);
+    } else if (data === 'summary_exportcsv') {
+      await ctx.reply('📄 CSV export coming soon! (Milestone 1.10)');
+    } else if (data === 'summary_exportpdf') {
+      await ctx.reply('📑 PDF export coming soon! (Milestone 1.10)');
+    } else if (data === 'summary_insights') {
+      await ctx.reply('💡 AI insights coming soon! (Milestone 1.11)');
     }
     
     await ctx.answerCbQuery().catch(() => {});
