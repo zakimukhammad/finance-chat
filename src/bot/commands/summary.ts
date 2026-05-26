@@ -54,7 +54,7 @@ export const summaryHandler = async (ctx: Context) => {
 
   const message = (ctx.message as any)?.text || '';
   const args = message.split(' ').slice(1);
-  const periodArg = args[0]?.toLowerCase();
+  const periodArg = (ctx.state as any)?.periodArg || args[0]?.toLowerCase();
 
   // ─── 1. Determine date range ────────────────────────────────────────────
 

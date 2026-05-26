@@ -60,7 +60,7 @@ export async function callGroq(
   const systemPrompt = buildSystemPrompt(ownerCurrency, ownerTimezone);
 
   const chatCompletion = await client.chat.completions.create({
-    model: 'llama-3.1-70b-versatile',
+    model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: text },

@@ -89,7 +89,7 @@ async function performCurrencyUpdate(ctx: Context, code: string) {
       if (txs && txs.length > 0) {
         for (const tx of txs) {
           const rate = await CurrencyService.getRate(tx.currency, code);
-          const amount_base = currency(tx.amount).multiply(rate).number;
+          const amount_base = currency(tx.amount).multiply(rate).value;
 
           const { error: updateError } = await getSupabase()
             .from('transactions')

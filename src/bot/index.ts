@@ -13,6 +13,7 @@ import { recurringHandler, handleRecurringCallback } from './commands/recurring'
 import { textMessageHandler, handleNlpCategoryCallback } from './handlers/textMessage';
 import { settingsHandler, currencyHandler } from './commands/settings';
 import { exportHandler } from './commands/export';
+import { insightsHandler, runInsights } from './commands/insights';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from '../utils/logger';
 
@@ -56,6 +57,7 @@ export function createBot(): Telegraf {
   bot.command('wallets', walletHandler);
   bot.command('summary', summaryHandler);
   bot.command('export', exportHandler);
+  bot.command('insights', insightsHandler);
   bot.command('goal', goalHandler);
   bot.command('goals', goalHandler);
   bot.command('recurring', recurringHandler);
@@ -126,7 +128,11 @@ export function createBot(): Telegraf {
       const { runExport } = await import('./commands/export');
       await runExport(ctx, 'pdf', yearMonth);
     } else if (data === 'summary_insights') {
-      await ctx.reply('💡 AI insights coming soon! (Milestone 1.11)');
+      await runInsights(ctx);
+    } else if (data.startsWith('insights_summary')) {
+      const yearMonth = data.replace('insights_summary', '').replace(/^_/, '') || undefined;
+      (ctx.state as any).periodArg = yearMonth;
+      await summaryHandler(ctx);
     }
     
     await ctx.answerCbQuery().catch(() => {});

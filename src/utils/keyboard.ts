@@ -137,3 +137,14 @@ export const buildSummaryFooterKeyboard = (period?: string) => {
   ]);
 };
 
+export const buildInsightsFooterKeyboard = (period?: string) => {
+  const periodSuffix = period && /^\d{4}-\d{2}$/.test(period) ? `_${period}` : '';
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('📊 View Summary', `insights_summary${periodSuffix}`),
+      Markup.button.callback('📄 Export Report', `summary_exportpdf${periodSuffix}`),
+    ]
+  ]);
+};
+
+
