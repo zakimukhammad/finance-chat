@@ -51,7 +51,7 @@ describe('BudgetService', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('budgets');
       expect(mockSupabase.upsert).toHaveBeenCalledWith(
         { category_id: 'cat-food', amount: 500, period: 'monthly', alert_threshold: 80 },
-        { onConflict: 'category_id' }
+        { onConflict: 'category_id,period' }
       );
       expect(result.amount).toBe(500);
     });
@@ -66,7 +66,7 @@ describe('BudgetService', () => {
 
       expect(mockSupabase.upsert).toHaveBeenCalledWith(
         { category_id: 'cat-food', amount: 800, period: 'monthly', alert_threshold: 80 },
-        { onConflict: 'category_id' }
+        { onConflict: 'category_id,period' }
       );
       expect(result.amount).toBe(800);
     });

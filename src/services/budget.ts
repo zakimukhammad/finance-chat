@@ -15,7 +15,7 @@ export class BudgetService {
       .from('budgets')
       .upsert(
         { category_id: categoryId, amount, period, alert_threshold: 80 },
-        { onConflict: 'category_id' }
+        { onConflict: 'category_id,period' }
       )
       .select()
       .single();

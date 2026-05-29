@@ -13,7 +13,18 @@ export const errorHandler: MiddlewareFn<Context> = async (ctx, next) => {
   try {
     await next();
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
+    let error: Error;
+    if (err instanceof Error) {
+      error = err;
+    } else if (typeof err === 'object' && err !== null) {
+      const msg = (err as any).message || (err as any).details || JSON.stringify(err);
+      error = new Error(msg);
+      // Transfer useful properties if they exist
+      if ((err as any).code) (error as any).code = (err as any).code;
+      if ((err as any).details) (error as any).details = (err as any).details;
+    } else {
+      error = new Error(String(err));
+    }
 
     // Log to structured logger
     logger.error({
