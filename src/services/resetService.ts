@@ -42,7 +42,7 @@ export class ResetService {
 
     // 4. Delete all goals
     const { error: goalError } = await supabase
-      .from('goals')
+      .from('savings_goals')
       .delete()
       .neq('id', '00000000-0000-0000-0000-000000000000');
     if (goalError) {

@@ -28,7 +28,7 @@ describe('ResetService', () => {
     expect(mockSupabase.from).toHaveBeenCalledWith('transactions');
     expect(mockSupabase.from).toHaveBeenCalledWith('budgets');
     expect(mockSupabase.from).toHaveBeenCalledWith('recurring_transactions');
-    expect(mockSupabase.from).toHaveBeenCalledWith('goals');
+    expect(mockSupabase.from).toHaveBeenCalledWith('savings_goals');
     expect(mockSupabase.from).toHaveBeenCalledWith('wallets');
     expect(mockSupabase.from).toHaveBeenCalledWith('owner');
 
