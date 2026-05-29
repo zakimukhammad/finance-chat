@@ -75,6 +75,18 @@ describe('extractDate', () => {
     expect(result).toBe(expected);
   });
 
+  it('"tadi malam" → today - 1 day (Bahasa Indonesia)', () => {
+    const result = extractDate('makan nasi goreng tadi malam habis 15000');
+    const expected = formatISO(subDays(fixedNow, 1), { representation: 'date' });
+    expect(result).toBe(expected); // 2026-05-28
+  });
+
+  it('"semalam" → today - 1 day (Bahasa Indonesia)', () => {
+    const result = extractDate('beli pulsa 50000 semalam');
+    const expected = formatISO(subDays(fixedNow, 1), { representation: 'date' });
+    expect(result).toBe(expected); // 2026-05-28
+  });
+
   it('DD/MM/YYYY format → correct ISO date', () => {
     const result = extractDate('spent 50 on 15/04/2026');
     expect(result).toBe('2026-04-15');

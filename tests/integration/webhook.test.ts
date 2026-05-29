@@ -82,6 +82,7 @@ process.env.NODE_ENV = 'test';
 // ─── Import app after mocks ────────────────────────────────────────────────
 
 import { app } from '../../src/server';
+import { ResetService } from '../../src/services/resetService';
 
 // Helper to make webhook POST requests (Hono fetch-based testing)
 async function postWebhook(body: object, secret?: string) {
@@ -117,6 +118,30 @@ function buildTelegramUpdate(text: string, fromId: number = 123456789) {
       },
       date: Math.floor(Date.now() / 1000),
       text,
+    },
+  };
+}
+
+function buildTelegramCallbackQuery(data: string, fromId: number = 123456789) {
+  return {
+    update_id: Math.floor(Math.random() * 100000),
+    callback_query: {
+      id: '12345',
+      from: {
+        id: fromId,
+        is_bot: false,
+        first_name: 'Test',
+      },
+      message: {
+        message_id: 100,
+        chat: {
+          id: fromId,
+          type: 'private',
+        },
+        date: Math.floor(Date.now() / 1000),
+        text: 'original message',
+      },
+      data,
     },
   };
 }
@@ -173,6 +198,39 @@ describe('Webhook Integration Tests', () => {
     );
     // HTTP should still return OK (webhook received), but bot internally drops the message
     expect(res.status).toBe(200);
+  });
+
+  it('POST /webhook with /reset command → 200 OK', async () => {
+    mockSupabase.single.mockResolvedValueOnce({
+      data: { telegram_id: 123456789, currency: 'USD', timezone: 'UTC', settings: {} },
+      error: null,
+    });
+
+    const res = await postWebhook(
+      buildTelegramUpdate('/reset'),
+      'test-secret-xyz'
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('POST /webhook with resetcancel callback → 200 OK', async () => {
+    const res = await postWebhook(
+      buildTelegramCallbackQuery('resetcancel'),
+      'test-secret-xyz'
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('POST /webhook with resetconfirm callback → 200 OK', async () => {
+    const resetSpy = vi.spyOn(ResetService, 'resetAllData').mockResolvedValue(undefined as any);
+
+    const res = await postWebhook(
+      buildTelegramCallbackQuery('resetconfirm'),
+      'test-secret-xyz'
+    );
+    expect(res.status).toBe(200);
+    expect(resetSpy).toHaveBeenCalledWith(123456789);
+    resetSpy.mockRestore();
   });
 });
 

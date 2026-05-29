@@ -53,6 +53,8 @@ const RELATIVE_DATE_WORDS: Record<string, () => Date> = {
   'yesterday': () => subDays(new Date(), 1),
   'kemarin': () => subDays(new Date(), 1),
   'kemaren': () => subDays(new Date(), 1),
+  'tadi malam': () => subDays(new Date(), 1),
+  'semalam': () => subDays(new Date(), 1),
   'last monday': () => previousMonday(new Date()),
   'last tuesday': () => previousTuesday(new Date()),
   'last wednesday': () => previousWednesday(new Date()),
@@ -62,6 +64,8 @@ const RELATIVE_DATE_WORDS: Record<string, () => Date> = {
   'last sunday': () => previousSunday(new Date()),
   'this morning': () => new Date(),
   'tadi pagi': () => new Date(),
+  'tadi sore': () => new Date(),
+  'tadi siang': () => new Date(),
   'tadi': () => new Date(),
 };
 

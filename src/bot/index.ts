@@ -16,6 +16,7 @@ import { settingsHandler, currencyHandler, handleSettingsCallback, handleSetting
 import { categoriesHandler, handleCategoryCallback } from './commands/categories';
 import { exportHandler } from './commands/export';
 import { insightsHandler, runInsights } from './commands/insights';
+import { resetHandler, handleResetCallback } from './commands/reset';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from '../utils/logger';
 
@@ -68,6 +69,7 @@ export function createBot(): Telegraf {
   bot.command('settings', settingsHandler);
   bot.command('currency', currencyHandler);
   bot.command('categories', categoriesHandler);
+  bot.command('reset', resetHandler);
 
   // ─── Callbacks & Messages ───────────────────────────────────────────────
   bot.on('callback_query', async (ctx) => {
@@ -154,6 +156,10 @@ export function createBot(): Telegraf {
       const yearMonth = data.replace('insights_summary', '').replace(/^_/, '') || undefined;
       (ctx.state as any).periodArg = yearMonth;
       await summaryHandler(ctx);
+    } else if (data === 'resetconfirm') {
+      await handleResetCallback(ctx, 'confirm');
+    } else if (data === 'resetcancel') {
+      await handleResetCallback(ctx, 'cancel');
     }
     
     await ctx.answerCbQuery().catch(() => {});
