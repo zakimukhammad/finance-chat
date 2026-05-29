@@ -1,5 +1,6 @@
 import { Telegraf } from 'telegraf';
 import { ownerGate } from './middleware/ownerGate';
+import { rateLimiter } from './middleware/rateLimiter';
 import { conversationState } from './middleware/conversationState';
 import { startHandler, handleCurrencySelection, handleTimezoneSelection, handleOnboardingWalletSelection } from './commands/start';
 import { helpHandler } from './commands/help';
@@ -23,8 +24,9 @@ import { logger } from '../utils/logger';
  * Middleware chain order:
  *   1. Error Handler (outermost — catches everything)
  *   2. Owner Gate (drops non-owner messages)
- *   3. Conversation State (loads Redis state)
- *   4. Command handlers (registered below)
+ *   3. Rate Limiter (soft-drops if > 10 msgs/min)
+ *   4. Conversation State (loads Redis state)
+ *   5. Command handlers (registered below)
  */
 export function createBot(): Telegraf {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -38,6 +40,7 @@ export function createBot(): Telegraf {
   // ─── Middleware Chain ───────────────────────────────────────────────────
   bot.use(errorHandler);
   bot.use(ownerGate);
+  bot.use(rateLimiter);
   bot.use(conversationState);
 
   // ─── Commands ───────────────────────────────────────────────────────────

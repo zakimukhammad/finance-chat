@@ -10,6 +10,7 @@ import { CategoryService } from '../../services/category';
 import { BudgetService } from '../../services/budget';
 import { WalletService } from '../../services/wallet';
 import { logger } from '../../utils/logger';
+import { addDays, differenceInMinutes, parseISO } from 'date-fns';
 
 export const textMessageHandler = async (ctx: Context) => {
   const text = (ctx.message as any)?.text;
@@ -193,6 +194,38 @@ async function autoProcessNlp(ctx: Context, parsed: any, ownerCurrency: string) 
     }
   }
 
+  // ─── Edge Case: Future date warning (> 7 days ahead) ──────────────────
+  const parsedDate = parseISO(parsed.date);
+  const sevenDaysFromNow = addDays(new Date(), 7);
+  if (parsedDate > sevenDaysFromNow) {
+    // Route to medium-confidence flow (ask confirmation instead of auto-saving)
+    logger.info({ date: parsed.date }, 'Future date warning: > 7 days ahead');
+    await askConfirmNlp(ctx, { ...parsed, _futureDateWarning: true }, ownerCurrency);
+    return;
+  }
+
+  // ─── Edge Case: Duplicate detection (same amount + desc + date within 5 min) ───
+  try {
+    const recentTxs = await TransactionService.getHistory(5);
+    const now = new Date();
+    const duplicate = recentTxs.find(tx => {
+      const timeDiff = differenceInMinutes(now, new Date(tx.created_at));
+      return (
+        timeDiff <= 5 &&
+        Number(tx.amount) === parsed.amount &&
+        tx.date === parsed.date &&
+        (tx.description || '').toLowerCase() === (parsed.description || '').toLowerCase()
+      );
+    });
+    if (duplicate) {
+      logger.info({ txId: duplicate.id }, 'Duplicate transaction detected');
+      await askConfirmNlp(ctx, { ...parsed, _duplicateWarning: true }, ownerCurrency);
+      return;
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Duplicate detection failed — proceeding anyway');
+  }
+
   const tx = await TransactionService.create({
     type,
     amount: parsed.amount,
@@ -288,7 +321,17 @@ async function askConfirmNlp(ctx: Context, parsed: any, ownerCurrency: string) {
     walletLine = `💳 Wallet: ${wallet.icon} ${wallet.name}\n`;
   }
 
+  // Edge case warnings
+  let warningLine = '';
+  if (parsed._futureDateWarning) {
+    warningLine = '⚠️ *Are you sure about this date?* It\'s more than 7 days in the future.\n\n';
+  }
+  if (parsed._duplicateWarning) {
+    warningLine = '⚠️ *Looks like a duplicate!* A similar transaction was logged within the last 5 minutes.\n\n';
+  }
+
   const text =
+    warningLine +
     `🤔 Does this look right?\n\n` +
     `${type === 'expense' ? '💸 Expense' : type === 'income' ? '💰 Income' : '🔄 Transfer'}: ${formatCurrency(parsed.amount, parsed.currency || ownerCurrency)}\n` +
     (category ? `📁 ${category.icon} ${category.name}\n` : type !== 'transfer' ? `📁 Category: ${parsed.category_hint || 'unknown'}\n` : '') +

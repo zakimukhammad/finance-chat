@@ -103,10 +103,12 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 // ─── Start ──────────────────────────────────────────────────────────────────
-main().catch((err) => {
-  logger.error({ err }, 'Failed to start server');
-  process.exit(1);
-});
+if (process.env.NODE_ENV !== 'test') {
+  main().catch((err) => {
+    logger.error({ err }, 'Failed to start server');
+    process.exit(1);
+  });
+}
 
 // Export for testing
 export { app, bot };
