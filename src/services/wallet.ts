@@ -44,8 +44,26 @@ export class WalletService {
   }
 
   /**
+   * Get wallet by ID.
+   */
+  static async getById(id: string): Promise<Wallet | null> {
+    const { data, error } = await getSupabase()
+      .from('wallets')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      throw error;
+    }
+    return data as Wallet;
+  }
+
+  /**
    * Get wallet by name (exact match, case-insensitive, then fuzzy match).
    */
+
   static async getByName(name: string): Promise<Wallet | null> {
     const wallets = await this.list();
     const lowerName = name.toLowerCase().trim();

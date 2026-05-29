@@ -6,11 +6,15 @@ import { RecurringService } from '../services/recurring';
 import { CurrencyService } from '../services/currency';
 import { getSupabase } from '../db/client';
 import { logger } from '../utils/logger';
+import { toZonedTime } from 'date-fns-tz';
+import { runDailyDigest } from './dailyDigest';
+import { runWeeklyDigest } from './weeklyDigest';
 
 /**
  * Register all scheduled cron jobs for the bot.
  */
 export function registerJobs(bot: Telegraf): void {
+
   // Check budget alerts every hour
   cron.schedule('0 * * * *', () => {
     logger.info('Running hourly budget alert check');
@@ -66,7 +70,37 @@ export function registerJobs(bot: Telegraf): void {
     });
   }, { timezone: 'UTC' });
 
-  // (Placeholders for Milestone 1.8 - Digests)
+  // Hourly check for daily and weekly digests (Milestone 1.12)
+  cron.schedule('0 * * * *', () => {
+    logger.info('Running hourly digest checks');
+    (async () => {
+      try {
+        const { data: owner } = await getSupabase().from('owner').select('*').single();
+        if (!owner) return;
+
+        const tz = owner.timezone || 'UTC';
+        const localTime = toZonedTime(new Date(), tz);
+        const hour = localTime.getHours();
+        const day = localTime.getDay(); // 0 is Sunday
+
+        // 1. Daily Digest: run if digest_hour matches current hour
+        if (owner.settings.daily_digest && hour === owner.settings.digest_hour) {
+          logger.info({ hour, tz }, 'Triggering daily digest job');
+          await runDailyDigest(bot, owner);
+        }
+
+        // 2. Weekly Digest: run Sunday (0) at 20:00 (8 PM)
+        if (owner.settings.weekly_digest && day === 0 && hour === 20) {
+          logger.info({ day, hour, tz }, 'Triggering weekly digest job');
+          await runWeeklyDigest(bot, owner);
+        }
+      } catch (err) {
+        logger.error({ err }, 'Hourly digest checks failed');
+      }
+    })();
+  }, { timezone: 'UTC' });
+
   logger.info('All cron jobs registered successfully');
 }
+
 

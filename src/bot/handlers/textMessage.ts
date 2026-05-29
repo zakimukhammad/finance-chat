@@ -65,6 +65,28 @@ export const textMessageHandler = async (ctx: Context) => {
       if (handled) return;
     }
 
+    // Settings digest hour setup flow: user typing hour
+    if (state.state === 'settings_digesthour') {
+      const hour = parseInt(text.trim(), 10);
+      if (isNaN(hour) || hour < 0 || hour > 23) {
+        await ctx.reply('⚠️ Please enter a valid hour between 0 and 23 (e.g. 21).');
+        return;
+      }
+      
+      const telegramId = ctx.from?.id;
+      if (telegramId) {
+        const updated = await OwnerService.updateSettings(telegramId, { digest_hour: hour });
+        await (ctx as any).clearConversationState();
+        
+        await ctx.reply(`✅ Digest hour updated to ${hour}:00.`);
+        
+        // Re-send settings message
+        const { settingsHandler } = await import('../commands/settings');
+        await settingsHandler(ctx);
+      }
+      return;
+    }
+
     // Goal setup flow: user typing goal inputs
     if (state.state && state.state.startsWith('goal_')) {
       const { handleGoalTextFlow } = await import('../commands/goals');

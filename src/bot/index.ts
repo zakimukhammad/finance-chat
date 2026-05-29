@@ -11,7 +11,8 @@ import { summaryHandler } from './commands/summary';
 import { goalHandler, handleGoalCallback } from './commands/goals';
 import { recurringHandler, handleRecurringCallback } from './commands/recurring';
 import { textMessageHandler, handleNlpCategoryCallback } from './handlers/textMessage';
-import { settingsHandler, currencyHandler } from './commands/settings';
+import { settingsHandler, currencyHandler, handleSettingsCallback, handleSettingsWalletCallback, handleTimezoneCallback } from './commands/settings';
+import { categoriesHandler, handleCategoryCallback } from './commands/categories';
 import { exportHandler } from './commands/export';
 import { insightsHandler, runInsights } from './commands/insights';
 import { errorHandler } from './middleware/errorHandler';
@@ -63,6 +64,7 @@ export function createBot(): Telegraf {
   bot.command('recurring', recurringHandler);
   bot.command('settings', settingsHandler);
   bot.command('currency', currencyHandler);
+  bot.command('categories', categoriesHandler);
 
   // ─── Callbacks & Messages ───────────────────────────────────────────────
   bot.on('callback_query', async (ctx) => {
@@ -79,7 +81,23 @@ export function createBot(): Telegraf {
         await handleCurrencyCallback(ctx, currencyCode);
       }
     } else if (data.startsWith('tz_')) {
-      await handleTimezoneSelection(ctx, data.replace('tz_', ''));
+      const state = (ctx as any).conversationState;
+      if (state?.state === 'onboarding_timezone') {
+        await handleTimezoneSelection(ctx, data.replace('tz_', ''));
+      } else {
+        await handleTimezoneCallback(ctx, data.replace('tz_', ''));
+      }
+    } else if (data.startsWith('set_')) {
+      await handleSettingsCallback(ctx, data.replace('set_', ''));
+    } else if (data.startsWith('setwallet_')) {
+      await handleSettingsWalletCallback(ctx, data.replace('setwallet_', ''));
+    } else if (data.startsWith('cattype_') || data.startsWith('catdelreq_') || data.startsWith('catdelconf_') || data === 'catdelcancel') {
+      const action = data.startsWith('cattype_') ? 'cattype'
+                    : data.startsWith('catdelreq_') ? 'catdelreq'
+                    : data.startsWith('catdelconf_') ? 'catdelconf'
+                    : 'catdelcancel';
+      const val = data.replace(`${action}_`, '');
+      await handleCategoryCallback(ctx, action, val);
     } else if (data.startsWith('onbwallet_')) {
       await handleOnboardingWalletSelection(ctx, data.replace('onbwallet_', ''));
     } else if (data.startsWith('cat_')) {

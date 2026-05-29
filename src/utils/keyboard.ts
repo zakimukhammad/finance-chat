@@ -147,4 +147,44 @@ export const buildInsightsFooterKeyboard = (period?: string) => {
   ]);
 };
 
+export const buildSettingsKeyboard = () => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('💱 Currency', 'set_currency'),
+      Markup.button.callback('🌐 Timezone', 'set_tz'),
+    ],
+    [
+      Markup.button.callback('💼 Default Wallet', 'set_defwallet'),
+      Markup.button.callback('⏰ Digest Hour', 'set_digesthour'),
+    ],
+    [
+      Markup.button.callback('📅 Daily Digest', 'set_toggle_daily'),
+      Markup.button.callback('📆 Weekly Digest', 'set_toggle_weekly'),
+    ],
+    [
+      Markup.button.callback('📊 Budget in Summary', 'set_toggle_budget'),
+    ]
+  ]);
+};
+
+export const buildCategoryTypeKeyboard = () => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('💸 Expense', 'cattype_expense'),
+      Markup.button.callback('💰 Income', 'cattype_income'),
+      Markup.button.callback('🔄 Both', 'cattype_both'),
+    ]
+  ]);
+};
+
+export const buildCategoryDeleteConfirmKeyboard = (categoryId: string) => {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('🗑️ Yes, Delete', `catdelconf_${categoryId}`),
+      Markup.button.callback('❌ Cancel', 'catdelcancel')
+    ]
+  ]);
+};
+
+
 

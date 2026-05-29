@@ -61,4 +61,26 @@ export class OwnerService {
     if (error) throw error;
     return data as Owner;
   }
+
+  /**
+   * Update owner timezone.
+   */
+  static async updateTimezone(telegramId: number, timezone: string): Promise<Owner> {
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone: timezone });
+    } catch (e) {
+      throw new Error('Invalid timezone. Please use a valid IANA timezone (e.g. Asia/Jakarta).');
+    }
+
+    const { data, error } = await getSupabase()
+      .from('owner')
+      .update({ timezone })
+      .eq('telegram_id', telegramId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as Owner;
+  }
 }
+
