@@ -141,16 +141,34 @@ export class TransactionService {
   }
 
   static async delete(id: string): Promise<void> {
-    // TRD supports deleting by short ID
-    // So we search for id starting with the provided string
-    const { data, error: fetchError } = await getSupabase()
-      .from('transactions')
-      .select('*')
-      .ilike('id', `${id}%`)
-      .limit(1)
-      .single();
+    // Check if it is a full UUID
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    let data;
 
-    if (fetchError || !data) {
+    if (isUuid) {
+      const { data: tx, error: fetchError } = await getSupabase()
+        .from('transactions')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (!fetchError && tx) {
+        data = tx;
+      }
+    } else {
+      // It is a short ID prefix. Fetch last 1000 transactions and match in-memory
+      const { data: txs, error: fetchError } = await getSupabase()
+        .from('transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000);
+      
+      if (!fetchError && txs) {
+        data = txs.find(t => t.id.replace(/-/g, '').startsWith(id.toLowerCase()));
+      }
+    }
+
+    if (!data) {
       throw new Error('Transaction not found');
     }
 

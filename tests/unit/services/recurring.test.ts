@@ -116,39 +116,59 @@ describe('RecurringService', () => {
   });
 
   describe('getById', () => {
-    it('fetches single entry by ID or short ID prefix match', async () => {
-      const mockEntry = { id: 'rec-123456789', description: 'Entry' };
+    it('fetches single entry by full UUID', async () => {
+      const uuid = 'e463a8a3-2287-4d9f-a641-a6efc2e0b57e';
+      const mockEntry = { id: uuid, description: 'Entry' };
       mockSupabase.single.mockResolvedValueOnce({ data: mockEntry, error: null });
 
-      const res = await RecurringService.getById('rec-12');
+      const res = await RecurringService.getById(uuid);
 
-      expect(mockSupabase.ilike).toHaveBeenCalledWith('id', 'rec-12%');
+      expect(mockSupabase.eq).toHaveBeenCalledWith('id', uuid);
       expect(res).toEqual(mockEntry);
+    });
+
+    it('fetches single entry by short ID prefix match', async () => {
+      const uuid = 'e463a8a3-2287-4d9f-a641-a6efc2e0b57e';
+      const shortId = 'e463a8';
+      
+      mockSupabase.then = vi.fn().mockImplementation((resolve) => {
+        resolve({
+          data: [
+            { id: uuid, description: 'Entry' }
+          ],
+          error: null
+        });
+      });
+
+      const res = await RecurringService.getById(shortId);
+      expect(res.id).toBe(uuid);
     });
   });
 
   describe('delete', () => {
     it('deletes recurring configuration by ID', async () => {
-      const mockEntry = { id: 'rec-123456789', description: 'Entry' };
-      mockSupabase.single.mockResolvedValueOnce({ data: mockEntry, error: null });
-      mockSupabase.single.mockResolvedValueOnce({ data: null, error: null });
+      const uuid = 'e463a8a3-2287-4d9f-a641-a6efc2e0b57e';
+      const mockEntry = { id: uuid, description: 'Entry' };
+      mockSupabase.single.mockResolvedValueOnce({ data: mockEntry, error: null }); // getById
+      mockSupabase.single.mockResolvedValueOnce({ data: null, error: null }); // delete
 
-      await expect(RecurringService.delete('rec-12')).resolves.not.toThrow();
+      await expect(RecurringService.delete(uuid)).resolves.not.toThrow();
 
       expect(mockSupabase.delete).toHaveBeenCalled();
-      expect(mockSupabase.eq).toHaveBeenCalledWith('id', 'rec-123456789');
+      expect(mockSupabase.eq).toHaveBeenCalledWith('id', uuid);
     });
   });
 
   describe('togglePause', () => {
     it('toggles the active flag', async () => {
-      const mockEntry = { id: 'rec-123', description: 'Entry', active: true };
+      const uuid = 'e463a8a3-2287-4d9f-a641-a6efc2e0b57e';
+      const mockEntry = { id: uuid, description: 'Entry', active: true };
       const mockUpdated = { ...mockEntry, active: false };
 
       mockSupabase.single.mockResolvedValueOnce({ data: mockEntry, error: null }); // getById
       mockSupabase.single.mockResolvedValueOnce({ data: mockUpdated, error: null }); // update
 
-      const res = await RecurringService.togglePause('rec-123');
+      const res = await RecurringService.togglePause(uuid);
 
       expect(mockSupabase.update).toHaveBeenCalledWith({ active: false });
       expect(res.active).toBe(false);

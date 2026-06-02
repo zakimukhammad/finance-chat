@@ -109,39 +109,70 @@ describe('TransactionService', () => {
   });
 
   describe('delete with wallet reversals', () => {
-    it('reverses balances on transaction deletion', async () => {
+    it('reverses balances on transaction deletion with full UUID', async () => {
+      const uuid = 'e463a8a3-2287-4d9f-a641-a6efc2e0b57e';
       // Mock fetch before deletion
       mockSupabase.single.mockResolvedValueOnce({
-        data: { id: 'tx-123', type: 'transfer', amount: 30, wallet_id: 'wallet-1', to_wallet_id: 'wallet-2' },
+        data: { id: uuid, type: 'transfer', amount: 30, wallet_id: 'wallet-1', to_wallet_id: 'wallet-2' },
         error: null,
       });
 
       const adjustSpy = vi.spyOn(WalletService, 'adjustBalance').mockResolvedValue(undefined as any);
 
-      await TransactionService.delete('tx-123');
+      await TransactionService.delete(uuid);
 
       // Check reversal logic (+30 to source, -30 to target)
       expect(adjustSpy).toHaveBeenNthCalledWith(1, 'wallet-1', 30);
       expect(adjustSpy).toHaveBeenNthCalledWith(2, 'wallet-2', -30);
     });
+
+    it('reverses balances on transaction deletion with short ID', async () => {
+      const uuid = 'e463a8a3-2287-4d9f-a641-a6efc2e0b57e';
+      const shortId = 'e463a8';
+      
+      // Mock selection list for short ID
+      mockSupabase.from = vi.fn().mockImplementation((table) => {
+        if (table === 'owner') return mockOwner;
+        return mockSupabase;
+      });
+      
+      // Awaiting the chained builder resolves to the list of transactions
+      mockSupabase.then = vi.fn().mockImplementation((resolve) => {
+        resolve({
+          data: [
+            { id: 'another-uuid-1234-5678', type: 'expense', amount: 50 },
+            { id: uuid, type: 'expense', amount: 40, wallet_id: 'wallet-1' }
+          ],
+          error: null
+        });
+      });
+
+      const adjustSpy = vi.spyOn(WalletService, 'adjustBalance').mockResolvedValue(undefined as any);
+
+      await TransactionService.delete(shortId);
+
+      // Check reversal logic (+40 to source)
+      expect(adjustSpy).toHaveBeenCalledWith('wallet-1', 40);
+    });
   });
 
   describe('update with wallet adjustments and reversals', () => {
     it('reverses old balance and applies new balance on amount edit', async () => {
+      const uuid = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
       // 1st call to single(): fetch original
       mockSupabase.single.mockResolvedValueOnce({
-        data: { id: 'tx-123', type: 'expense', amount: 50, wallet_id: 'wallet-1' },
+        data: { id: uuid, type: 'expense', amount: 50, wallet_id: 'wallet-1' },
         error: null,
       });
       // 2nd call to single(): return updated transaction
       mockSupabase.single.mockResolvedValueOnce({
-        data: { id: 'tx-123', type: 'expense', amount: 80, wallet_id: 'wallet-1' },
+        data: { id: uuid, type: 'expense', amount: 80, wallet_id: 'wallet-1' },
         error: null,
       });
 
       const adjustSpy = vi.spyOn(WalletService, 'adjustBalance').mockResolvedValue(undefined as any);
 
-      await TransactionService.update('tx-123', { amount: 80 });
+      await TransactionService.update(uuid, { amount: 80 });
 
       // Verify that reversal is done with +50, and new adjustment with -80
       expect(adjustSpy).toHaveBeenNthCalledWith(1, 'wallet-1', 50);

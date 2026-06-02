@@ -57,14 +57,31 @@ export class RecurringService {
     wallet: { name: string; icon: string } | null;
     to_wallet: { name: string; icon: string } | null;
   }> {
-    const { data, error } = await getSupabase()
-      .from('recurring_transactions')
-      .select('*, category:categories(name, icon), wallet:wallets!wallet_id(name, icon), to_wallet:wallets!to_wallet_id(name, icon)')
-      .ilike('id', `${id}%`)
-      .limit(1)
-      .single();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    let data;
 
-    if (error || !data) {
+    if (isUuid) {
+      const { data: entry, error } = await getSupabase()
+        .from('recurring_transactions')
+        .select('*, category:categories(name, icon), wallet:wallets!wallet_id(name, icon), to_wallet:wallets!to_wallet_id(name, icon)')
+        .eq('id', id)
+        .single();
+      
+      if (!error && entry) {
+        data = entry;
+      }
+    } else {
+      const { data: entries, error } = await getSupabase()
+        .from('recurring_transactions')
+        .select('*, category:categories(name, icon), wallet:wallets!wallet_id(name, icon), to_wallet:wallets!to_wallet_id(name, icon)')
+        .order('created_at', { ascending: true });
+      
+      if (!error && entries) {
+        data = entries.find(item => item.id.replace(/-/g, '').startsWith(id.toLowerCase()));
+      }
+    }
+
+    if (!data) {
       throw new Error('Recurring entry not found');
     }
 
