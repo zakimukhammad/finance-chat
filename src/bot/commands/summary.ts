@@ -144,7 +144,7 @@ export const summaryHandler = async (ctx: Context) => {
       const icon = cat?.icon || '❓';
       const name = cat?.name || 'Unknown';
       const pct = expense > 0 ? (total / expense) * 100 : 0;
-      text += `${icon} ${name}  ${formatCurrency(total, curr)} ${progressBar(pct)} ${formatPercent(pct)}\n`;
+      text += `${icon} ${name}  ${formatCurrency(total, curr)} \n${progressBar(pct)} ${formatPercent(pct)}\n`;
     }
   }
 
@@ -168,13 +168,13 @@ export const summaryHandler = async (ctx: Context) => {
   if (wallets.length > 0) {
     text += `\n━━━ Wallet Balances ━━━\n`;
     const sorted = [...wallets].sort((a, b) => Number(b.balance) - Number(a.balance));
-    const top3 = sorted.slice(0, 3);
+    const top5 = sorted.slice(0, 5);
 
     // Compact inline format per TRD Section 9.7
-    const walletParts = top3.map(w => `${w.icon} ${w.name}  ${formatCurrency(Number(w.balance), w.currency)}`);
-    text += walletParts.join(' · ') + '\n';
+    const walletParts = top5.map(w => `${w.icon} ${w.name}  ${formatCurrency(Number(w.balance), w.currency)}`);
+    text += walletParts.join('\n') + '\n\n';
 
-    if (sorted.length > 3) {
+    if (sorted.length > 5) {
       const netWorth = await WalletService.getTotalNetWorth(curr);
       text += `📊 *Net Worth*: ${formatCurrency(netWorth, curr)}\n`;
     }
