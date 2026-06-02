@@ -4,8 +4,9 @@ import { TransactionService } from './transaction';
 import { BudgetService } from './budget';
 import { GoalService } from './goal';
 import { OwnerService } from './owner';
+import { CategoryService } from './category';
 import { logger } from '../utils/logger';
-import { subMonths, format, startOfMonth, endOfMonth, subDays, parseISO } from 'date-fns';
+import { subMonths, format, startOfMonth, endOfMonth, subDays } from 'date-fns';
 
 let genAI: GoogleGenerativeAI | null = null;
 let groqClient: Groq | null = null;
@@ -81,12 +82,19 @@ export class InsightService {
     // ─── Fetch context data ───────────────────────────────────────────────
     logger.info({ currentPeriodStr, fromDateStr, toDateStr }, 'Fetching data for AI insights');
 
-    const [txs, budgetStatuses, savingsGoals, priorSummary] = await Promise.all([
+    const [txs, budgetStatuses, savingsGoals, priorSummary, allCategories] = await Promise.all([
       TransactionService.getByDateRange(fromDateStr, toDateStr),
       BudgetService.getStatus(),
       GoalService.list(),
       TransactionService.getSummary('month', priorMonthDate.toISOString()),
+      CategoryService.getAll(),
     ]);
+
+    // Build a lookup map: category UUID → human-readable name
+    const categoryNameMap: Record<string, string> = {};
+    for (const cat of allCategories) {
+      categoryNameMap[cat.id] = `${cat.icon} ${cat.name}`;
+    }
 
     // ─── Build serialized payload (no PII, only categories, dates, amounts) ──
     const serializedTxs = txs.map(tx => ({
@@ -95,7 +103,8 @@ export class InsightService {
       amount: Number(tx.amount),
       currency: tx.currency,
       amount_base: Number(tx.amount_base),
-      category_id: tx.category_id,
+      // Use human-readable name so the AI never echoes raw UUIDs or field names with underscores
+      category: tx.category_id ? (categoryNameMap[tx.category_id] ?? 'Unknown') : 'Uncategorized',
     }));
 
     const serializedBudgets = budgetStatuses.map(b => ({
@@ -190,11 +199,17 @@ export class InsightService {
 
   /**
    * Utility to clean up markdown code fences, headers, etc.
+   * Also escapes Telegram Markdown special characters that the AI might produce
+   * and that would cause a parse error when sent with parse_mode: 'Markdown'.
    */
   private static cleanResponse(text: string): string {
     return text
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/i, '')
-      .trim();
+      .replace(/^```(?:json)?\s*/i, '')  // strip opening code fence
+      .replace(/\s*```$/i, '')           // strip closing code fence
+      .trim()
+      // Escape Telegram Markdown v1 special characters so the parser never fails
+      .replace(/_/g, '\_')              // underscores → italic markers
+      .replace(/\[/g, '\\[')            // square brackets → link openers
+      .replace(/`/g, '\\`');            // backticks → inline-code markers
   }
 }
