@@ -60,6 +60,7 @@ export function createBot(): Telegraf {
   bot.command('budget', budgetHandler);
   bot.command('wallet', walletHandler);
   bot.command('wallets', walletHandler);
+  bot.command('reconcile', walletHandler);
   bot.command('summary', summaryHandler);
   bot.command('export', exportHandler);
   bot.command('insights', insightsHandler);
@@ -107,11 +108,17 @@ export function createBot(): Telegraf {
       await handleOnboardingWalletSelection(ctx, data.replace('onbwallet_', ''));
     } else if (data.startsWith('cat_')) {
       const categoryId = data.replace('cat_', '');
-      const handledNlp = await handleNlpCategoryCallback(ctx, categoryId);
-      if (!handledNlp) {
-        const handledBudget = await handleBudgetCallback(ctx, 'cat', categoryId);
-        if (!handledBudget) {
-          await handleAddCallback(ctx, 'cat', categoryId);
+      const state = (ctx as any).conversationState;
+      if (state?.state === 'wallet_reconcile_category') {
+        const { handleWalletCallback } = await import('./commands/wallets');
+        await handleWalletCallback(ctx, 'cat', categoryId);
+      } else {
+        const handledNlp = await handleNlpCategoryCallback(ctx, categoryId);
+        if (!handledNlp) {
+          const handledBudget = await handleBudgetCallback(ctx, 'cat', categoryId);
+          if (!handledBudget) {
+            await handleAddCallback(ctx, 'cat', categoryId);
+          }
         }
       }
     } else if (data.startsWith('date_')) {
@@ -122,9 +129,10 @@ export function createBot(): Telegraf {
       await handleAddCallback(ctx, 'undo', data.replace('undo_', ''));
     } else if (data.startsWith('wallet_')) {
       await handleAddCallback(ctx, 'wallet', data.replace('wallet_', ''));
-    } else if (data.startsWith('wicon_') || data.startsWith('wtype_') || data.startsWith('wdef_')) {
+    } else if (data.startsWith('wicon_') || data.startsWith('wtype_') || data.startsWith('wdef_') || data.startsWith('wrec_')) {
       const action = data.split('_')[0];
       const val = data.replace(`${action}_`, '');
+      const { handleWalletCallback } = await import('./commands/wallets');
       await handleWalletCallback(ctx, action, val);
     } else if (data.startsWith('goal_')) {
       await handleGoalCallback(ctx, data);

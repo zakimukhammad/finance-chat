@@ -66,6 +66,13 @@ export const textMessageHandler = async (ctx: Context) => {
       if (handled) return;
     }
 
+    // Wallet reconcile flow: user typing amount
+    if (state.state === 'wallet_reconcile_amount') {
+      const { handleWalletReconcileFlow } = await import('../commands/wallets');
+      const handled = await handleWalletReconcileFlow(ctx, state, text);
+      if (handled) return;
+    }
+
     // Settings digest hour setup flow: user typing hour
     if (state.state === 'settings_digesthour') {
       const hour = parseInt(text.trim(), 10);

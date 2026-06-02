@@ -74,4 +74,70 @@ describe('WalletService', () => {
       expect(mockSupabase.update).toHaveBeenCalledWith({ balance: 150 });
     });
   });
+
+  describe('reconcile', () => {
+    beforeEach(() => {
+      vi.doMock('../../../src/services/transaction', () => ({
+        TransactionService: {
+          create: vi.fn().mockResolvedValue({ id: 'tx-123' })
+        }
+      }));
+    });
+
+    it('returns none if diff is 0', async () => {
+      mockSupabase.eq = vi.fn().mockImplementation(() => ({
+        single: vi.fn().mockResolvedValue({ data: { id: 'w-1', name: 'GoPay', currency: 'IDR', balance: 1000 }, error: null }),
+      }));
+
+      const res = await WalletService.reconcile('w-1', 1000, 'cat-1', 'IDR');
+      expect(res).toEqual({ diff: 0, type: 'none' });
+    });
+
+    it('creates income if real balance is greater than current balance', async () => {
+      mockSupabase.eq = vi.fn().mockImplementation(() => ({
+        single: vi.fn().mockResolvedValue({ data: { id: 'w-1', name: 'GoPay', currency: 'IDR', balance: 1000 }, error: null }),
+        eq: vi.fn().mockReturnThis(),
+        update: vi.fn().mockResolvedValue({ error: null }),
+        then: (resolve: any) => resolve({ error: null })
+      }));
+
+      // Mock transaction service create
+      const createSpy = vi.fn().mockResolvedValue({ id: 'tx-123' });
+      vi.spyOn(await import('../../../src/services/transaction'), 'TransactionService', 'get').mockReturnValue({
+        create: createSpy
+      } as any);
+
+      const res = await WalletService.reconcile('w-1', 1500, 'cat-1', 'IDR');
+      expect(res).toEqual({ diff: 500, type: 'income' });
+      expect(createSpy).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'income',
+        amount: 500,
+        wallet_id: 'w-1',
+        category_id: 'cat-1'
+      }));
+    });
+
+    it('creates expense if real balance is less than current balance', async () => {
+      mockSupabase.eq = vi.fn().mockImplementation(() => ({
+        single: vi.fn().mockResolvedValue({ data: { id: 'w-1', name: 'GoPay', currency: 'IDR', balance: 1000 }, error: null }),
+        eq: vi.fn().mockReturnThis(),
+        update: vi.fn().mockResolvedValue({ error: null }),
+        then: (resolve: any) => resolve({ error: null })
+      }));
+
+      const createSpy = vi.fn().mockResolvedValue({ id: 'tx-123' });
+      vi.spyOn(await import('../../../src/services/transaction'), 'TransactionService', 'get').mockReturnValue({
+        create: createSpy
+      } as any);
+
+      const res = await WalletService.reconcile('w-1', 800, 'cat-1', 'IDR');
+      expect(res).toEqual({ diff: 200, type: 'expense' });
+      expect(createSpy).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'expense',
+        amount: 200,
+        wallet_id: 'w-1',
+        category_id: 'cat-1'
+      }));
+    });
+  });
 });

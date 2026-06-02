@@ -223,4 +223,60 @@ export class WalletService {
     }
     return total;
   }
+
+  /**
+   * Reconcile a wallet to a real-world balance.
+   * Calculates the discrepancy, creates a balancing income (surplus) or expense (deficit) transaction,
+   * then directly sets the wallet balance to the target amount.
+   *
+   * @param walletId    - The wallet to reconcile
+   * @param realBalance - The real-world balance (what you physically counted)
+   * @param categoryId  - Category for the adjustment transaction
+   * @param ownerCurrency - Owner's base currency for transaction conversion
+   * @returns The adjustment amount and type ('income' | 'expense' | 'none')
+   */
+  static async reconcile(
+    walletId: string,
+    realBalance: number,
+    categoryId: string,
+    ownerCurrency: string
+  ): Promise<{ diff: number; type: 'income' | 'expense' | 'none' }> {
+    // 1. Fetch the current wallet
+    const wallet = await this.getById(walletId);
+    if (!wallet) throw new Error('Wallet not found.');
+
+    const currentBalance = Number(wallet.balance);
+    const diff = realBalance - currentBalance;
+
+    if (diff === 0) {
+      return { diff: 0, type: 'none' };
+    }
+
+    // 2. Log the adjusting transaction (TransactionService will also adjustBalance)
+    const { TransactionService } = await import('./transaction');
+    const transactionType = diff > 0 ? 'income' : 'expense';
+    const amount = Math.abs(diff);
+
+    await TransactionService.create({
+      type: transactionType,
+      amount,
+      currency: wallet.currency,
+      wallet_id: walletId,
+      category_id: categoryId,
+      description: 'Balance Reconciliation',
+      date: new Date().toISOString().split('T')[0],
+      source: 'manual',
+    });
+
+    // 3. TransactionService.create already called adjustBalance (+/- delta), 
+    //    but rounding might cause drift. Force-set to the exact real balance.
+    const { error } = await getSupabase()
+      .from('wallets')
+      .update({ balance: realBalance })
+      .eq('id', walletId);
+
+    if (error) throw error;
+
+    return { diff: amount, type: transactionType };
+  }
 }
