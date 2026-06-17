@@ -13,6 +13,7 @@ import { goalHandler, handleGoalCallback } from './commands/goals';
 import { recurringHandler, handleRecurringCallback } from './commands/recurring';
 import { textMessageHandler, handleNlpCategoryCallback } from './handlers/textMessage';
 import { photoMessageHandler } from './handlers/photoMessage';
+import { voiceMessageHandler } from './handlers/voiceMessage';
 import { settingsHandler, currencyHandler, handleSettingsCallback, handleSettingsWalletCallback, handleTimezoneCallback } from './commands/settings';
 import { categoriesHandler, handleCategoryCallback } from './commands/categories';
 import { exportHandler } from './commands/export';
@@ -217,6 +218,7 @@ export function createBot(): Telegraf {
 
   bot.on('text', textMessageHandler);
   bot.on('photo', photoMessageHandler);
+  bot.on('voice', voiceMessageHandler);
 
   // ─── Global Error Handler ───────────────────────────────────────────────
   bot.catch((err, ctx) => {
