@@ -246,7 +246,9 @@ export async function autoProcessNlp(ctx: Context, parsed: any, ownerCurrency: s
     metadata: {
       nlp_intent: parsed.intent,
       nlp_confidence: parsed.confidence,
-      nlp_raw: (ctx.message as any)?.text,
+      nlp_raw: (ctx.message as any)?.text || (ctx.message as any)?.caption || parsed.voice_transcript || 'Photo/Voice Transaction',
+      photo_url: parsed.photo_url || undefined,
+      voice_transcript: parsed.voice_transcript || undefined,
     },
   });
 
@@ -454,7 +456,9 @@ export async function saveNlpTransaction(ctx: Context, nlpContext: any) {
     metadata: {
       nlp_intent: nlpContext.intent,
       nlp_confidence: nlpContext.nlp_confidence,
-      nlp_raw: nlpContext.nlp_raw,
+      nlp_raw: nlpContext.nlp_raw || nlpContext.voice_transcript || 'Photo/Voice Transaction',
+      photo_url: nlpContext.photo_url || undefined,
+      voice_transcript: nlpContext.voice_transcript || undefined,
     },
   });
 

@@ -63,6 +63,7 @@ export interface TransactionMetadata {
   nlp_confidence?: number;
   nlp_raw?: string;
   photo_url?: string;
+  voice_transcript?: string;
 }
 
 // ─── Category ───────────────────────────────────────────────────────────────
