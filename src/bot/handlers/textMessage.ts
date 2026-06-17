@@ -158,7 +158,7 @@ export const textMessageHandler = async (ctx: Context) => {
 
 // ─── High confidence: auto-save with undo ───────────────────────────────────
 
-async function autoProcessNlp(ctx: Context, parsed: any, ownerCurrency: string) {
+export async function autoProcessNlp(ctx: Context, parsed: any, ownerCurrency: string) {
   const type = parsed.intent === 'LOG_INCOME' ? 'income' : parsed.intent === 'LOG_TRANSFER' ? 'transfer' : 'expense';
   
   // Resolve category if not a transfer
@@ -279,6 +279,15 @@ async function autoProcessNlp(ctx: Context, parsed: any, ownerCurrency: string) 
     }
   }
 
+  let nudgeStr = '';
+  if (type === 'expense' && parsed.description) {
+    const { NudgeService } = await import('../../services/nudge');
+    const inlineNudge = await NudgeService.checkRecurringSuggestionInline(parsed.description, parsed.amount, ownerCurrency);
+    if (inlineNudge) {
+      nudgeStr = inlineNudge;
+    }
+  }
+
   const text =
     `✅ Logged!\n\n` +
     `${type === 'expense' ? '💸' : type === 'income' ? '💰' : '🔄'} ${formatCurrency(parsed.amount, parsed.currency || ownerCurrency)}\n` +
@@ -287,17 +296,28 @@ async function autoProcessNlp(ctx: Context, parsed: any, ownerCurrency: string) 
     `📅 ${formatDate(parsed.date)}\n` +
     (parsed.description ? `📝 ${parsed.description}\n` : '') + budgetStr +
     balanceInfo +
-    `\n\nID: \`${tx.id.split('-')[0]}\``;
+    `\n\nID: \`${tx.id.split('-')[0]}\`` +
+    nudgeStr;
+
+  let replyMarkup;
+  if (nudgeStr && parsed.description) {
+    replyMarkup = Markup.inlineKeyboard([
+      [Markup.button.callback('↩️ Undo', `undo_${tx.id}`)],
+      [Markup.button.callback('✅ Jadikan Rutin', `nudge_rec_yes:${encodeURIComponent(parsed.description)}:${parsed.amount}`)]
+    ]).reply_markup;
+  } else {
+    replyMarkup = buildConfirmationKeyboard(tx.id).reply_markup;
+  }
 
   await ctx.reply(text, {
     parse_mode: 'Markdown',
-    reply_markup: buildConfirmationKeyboard(tx.id).reply_markup,
+    reply_markup: replyMarkup,
   });
 }
 
 // ─── Medium confidence: show result + ask ───────────────────────────────────
 
-async function askConfirmNlp(ctx: Context, parsed: any, ownerCurrency: string) {
+export async function askConfirmNlp(ctx: Context, parsed: any, ownerCurrency: string) {
   const type = parsed.intent === 'LOG_INCOME' ? 'income' : parsed.intent === 'LOG_TRANSFER' ? 'transfer' : 'expense';
   
   let category = null;
@@ -374,7 +394,7 @@ async function askConfirmNlp(ctx: Context, parsed: any, ownerCurrency: string) {
 
 // ─── Low confidence: ask expense or income ──────────────────────────────────
 
-async function askClarifyNlp(ctx: Context, parsed: any) {
+export async function askClarifyNlp(ctx: Context, parsed: any) {
   await (ctx as any).setConversationState({
     state: 'nlp_pick_type',
     context: {
@@ -397,7 +417,7 @@ async function askClarifyNlp(ctx: Context, parsed: any) {
 
 // ─── Save from NLP confirm flow ─────────────────────────────────────────────
 
-async function saveNlpTransaction(ctx: Context, nlpContext: any) {
+export async function saveNlpTransaction(ctx: Context, nlpContext: any) {
   const telegramId = ctx.from?.id;
   if (!telegramId) return;
 

@@ -4,6 +4,7 @@ import { BudgetService } from '../services/budget';
 import { GoalService } from '../services/goal';
 import { RecurringService } from '../services/recurring';
 import { CurrencyService } from '../services/currency';
+import { NudgeService } from '../services/nudge';
 import { getSupabase } from '../db/client';
 import { logger } from '../utils/logger';
 import { toZonedTime } from 'date-fns-tz';
@@ -57,6 +58,29 @@ export function registerJobs(bot: Telegraf): void {
         logger.info('Running daily goal deadline reminders (fallback UTC)');
         GoalService.sendDeadlineReminders(bot).catch(err => {
           logger.error({ err }, 'Goal sendDeadlineReminders failed');
+        });
+      }, { timezone: 'UTC' });
+    }
+  })();
+
+  // Smart nudges every day at 10:00 owner local time (Milestone 2.1)
+  (async () => {
+    try {
+      const { data } = await getSupabase().from('owner').select('timezone').single();
+      const tz = data?.timezone || 'UTC';
+      cron.schedule('0 10 * * *', () => {
+        logger.info('Running daily smart nudges');
+        NudgeService.runAll(bot).catch(err => {
+          logger.error({ err }, 'Smart nudges runAll failed');
+        });
+      }, { timezone: tz });
+      logger.info({ timezone: tz }, 'Scheduled daily smart nudges');
+    } catch (err) {
+      logger.warn({ err }, 'Failed to fetch owner timezone for smart nudges, falling back to UTC');
+      cron.schedule('0 10 * * *', () => {
+        logger.info('Running daily smart nudges (fallback UTC)');
+        NudgeService.runAll(bot).catch(err => {
+          logger.error({ err }, 'Smart nudges runAll failed');
         });
       }, { timezone: 'UTC' });
     }

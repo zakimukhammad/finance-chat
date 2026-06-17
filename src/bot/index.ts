@@ -1,4 +1,4 @@
-import { Telegraf } from 'telegraf';
+import { Telegraf, Markup } from 'telegraf';
 import { ownerGate } from './middleware/ownerGate';
 import { rateLimiter } from './middleware/rateLimiter';
 import { conversationState } from './middleware/conversationState';
@@ -19,6 +19,10 @@ import { insightsHandler, runInsights } from './commands/insights';
 import { resetHandler, handleResetCallback } from './commands/reset';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from '../utils/logger';
+import { formatCurrency } from '../utils/formatters';
+import { OwnerService } from '../services/owner';
+import { CategoryService } from '../services/category';
+import { BudgetService } from '../services/budget';
 
 /**
  * Create and configure the Telegraf bot instance.
@@ -168,6 +172,42 @@ export function createBot(): Telegraf {
       await handleResetCallback(ctx, 'confirm');
     } else if (data === 'resetcancel') {
       await handleResetCallback(ctx, 'cancel');
+    } else if (data.startsWith('nudge_rec_yes:')) {
+      const parts = data.split(':');
+      const desc = decodeURIComponent(parts[1]);
+      const amt = parseFloat(parts[2]);
+      
+      await (ctx as any).setConversationState({
+        state: 'recurring_add_category',
+        context: {
+          description: desc,
+          amount: amt,
+          type: 'expense'
+        }
+      });
+      
+      const categories = await CategoryService.getByType('expense');
+      const buttons = categories.map(cat => Markup.button.callback(`${cat.icon} ${cat.name}`, `reccat_${cat.id}`));
+      const rows = [];
+      for (let i = 0; i < buttons.length; i += 2) {
+        rows.push(buttons.slice(i, i + 2));
+      }
+      
+      await ctx.reply('Silakan pilih kategori untuk transaksi rutin ini:', Markup.inlineKeyboard(rows));
+    } else if (data.startsWith('nudge_budget_yes:')) {
+      const parts = data.split(':');
+      const categoryId = parts[1];
+      const budgetAmount = parseFloat(parts[2]);
+      
+      await BudgetService.set(categoryId, budgetAmount);
+      
+      const category = await CategoryService.getById(categoryId);
+      const owner = await OwnerService.getOwner(ctx.from?.id!);
+      const formattedAmount = formatCurrency(budgetAmount, owner?.currency || 'IDR');
+      
+      await ctx.reply(`✅ Anggaran berhasil diatur! Batas bulanan untuk ${category ? `${category.icon} ${category.name}` : 'kategori ini'} adalah *${formattedAmount}*.`, { parse_mode: 'Markdown' });
+    } else if (data === 'nudge_dismiss') {
+      await ctx.deleteMessage().catch(() => {});
     }
     
     await ctx.answerCbQuery().catch(() => {});
