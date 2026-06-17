@@ -227,4 +227,42 @@ export class RecurringService {
       }
     }
   }
+
+  /**
+   * Get active recurring entries along with the date of the last matching transaction.
+   * Used by Enhanced Insights to perform a subscription audit (flag unused subscriptions).
+   */
+  static async getActiveWithLastTransaction(): Promise<{
+    entry: RecurringTransaction & { category: { name: string; icon: string } | null };
+    lastTxnDate: string | null;
+  }[]> {
+    // 1. Fetch all active recurring entries
+    const { data: entries, error } = await getSupabase()
+      .from('recurring_transactions')
+      .select('*, category:categories(name, icon)')
+      .eq('active', true)
+      .order('created_at', { ascending: true });
+
+    if (error || !entries || entries.length === 0) return [];
+
+    // 2. For each entry, find the most recent transaction that references it via recurring_id
+    const results: {
+      entry: RecurringTransaction & { category: { name: string; icon: string } | null };
+      lastTxnDate: string | null;
+    }[] = [];
+
+    for (const entry of entries) {
+      const { data: txns } = await getSupabase()
+        .from('transactions')
+        .select('date')
+        .eq('recurring_id', entry.id)
+        .order('date', { ascending: false })
+        .limit(1);
+
+      const lastTxnDate = txns && txns.length > 0 ? txns[0].date : null;
+      results.push({ entry: entry as any, lastTxnDate });
+    }
+
+    return results;
+  }
 }
