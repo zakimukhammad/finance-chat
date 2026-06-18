@@ -78,13 +78,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Close mobile nav on click
+  // Close mobile nav on link click
   navItems.forEach(item => {
     item.addEventListener('click', () => {
       navLinks.classList.remove('active');
       const icon = mobileNavToggle?.querySelector('i');
       if (icon) icon.className = 'fa-solid fa-bars';
     });
+  });
+
+  // Close mobile nav on click outside
+  document.addEventListener('click', (e) => {
+    if (navLinks.classList.contains('active')) {
+      const header = document.querySelector('header');
+      if (!header.contains(e.target)) {
+        navLinks.classList.remove('active');
+        const icon = mobileNavToggle?.querySelector('i');
+        if (icon) icon.className = 'fa-solid fa-bars';
+      }
+    }
   });
 
   // ─── INTERACTIVE PROJECT SELECTION ────────────────────────────────────────

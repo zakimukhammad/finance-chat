@@ -49,7 +49,7 @@ body {
 
 /* ─── Ambient Glow Backgrounds ───────────────────────────────────────────── */
 .bg-glow {
-  position: absolute;
+  position: fixed;
   width: 600px;
   height: 600px;
   border-radius: 50%;
@@ -200,6 +200,7 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative;
 }
 
 .logo {
@@ -269,6 +270,13 @@ header {
   align-items: center;
 }
 
+/* Prevent grid children from overflowing */
+.hero-content,
+.hero-visual {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .badge-new {
   display: inline-flex;
   align-items: center;
@@ -295,6 +303,7 @@ header {
   font-size: 1.15rem;
   margin-bottom: 36px;
   line-height: 1.7;
+  overflow-wrap: break-word;
 }
 
 .hero-actions {
@@ -345,10 +354,13 @@ header {
   font-size: 0.85rem;
   line-height: 1.6;
   background: rgba(0, 0, 0, 0.2);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .code-editor pre {
-  overflow-x: auto;
+  white-space: pre;
+  min-width: max-content;
 }
 
 .code-editor .keyword { color: #c084fc; }
@@ -1434,39 +1446,112 @@ footer {
   100% { box-shadow: 9984px 0 0 0 var(--primary-light), 9994px 0 0 0 rgba(167, 139, 250, 0.2), 10004px 0 0 0 rgba(167, 139, 250, 0.2); }
 }
 
+/* ─── Mobile Nav Dropdown ─────────────────────────────────────────────────── */
+.nav-links.active {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: rgba(5, 7, 15, 0.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-color);
+  padding: 16px 24px 24px;
+  gap: 6px;
+  z-index: 99;
+  animation: slideDown 0.2s ease;
+}
+
+.nav-links.active a {
+  padding: 12px 0;
+  font-size: 1.05rem;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.nav-links.active a:last-child {
+  border-bottom: none;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ─── Media Queries (Responsive Styling) ─────────────────────────────────── */
 @media (max-width: 1024px) {
   h1 { font-size: 3rem; }
   .hero-container { gap: 40px; }
+
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .portal-workspace-grid {
+    gap: 24px;
+  }
 }
 
 @media (max-width: 768px) {
   section { padding: 60px 0; }
-  
-  h1 { font-size: 2.25rem; }
-  h2 { font-size: 1.75rem; }
-  
+
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.65rem; }
+
+  /* ── Header ── */
+  header { padding: 12px 0; }
+
+  .nav-container { position: relative; }
+
+  .nav-links { display: none; }
+
+  .mobile-nav-toggle { display: block; }
+
+  .nav-cta { display: none; }
+
+  /* ── Hero ── */
+  .hero-section {
+    padding-top: 90px;
+    min-height: auto;
+  }
+
   .hero-container {
     grid-template-columns: 1fr;
-    gap: 40px;
+    gap: 32px;
+  }
+
+  .hero-content {
     text-align: center;
   }
-  
-  .badge-new { margin-left: auto; margin-right: auto; }
-  .hero-actions { justify-content: center; }
-  
-  .nav-links {
-    display: none;
+
+  .badge-new { margin: 0 auto 16px; }
+
+  .hero-actions {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
   }
-  
-  .mobile-nav-toggle {
-    display: block;
+
+  .hero-actions .btn {
+    flex: 1 1 140px;
+    justify-content: center;
+    max-width: 220px;
   }
-  
+
+  /* Code card: full width, scrollable */
+  .hero-visual { order: -1; }
+
+  .hero-intro-card { max-width: 100%; }
+
+  .code-editor { font-size: 0.78rem; padding: 16px; }
+
+  /* ── About ── */
   .about-layout {
     grid-template-columns: 1fr;
+    gap: 24px;
   }
-  
+
   .about-stats {
     flex-direction: row;
     justify-content: space-around;
@@ -1475,30 +1560,121 @@ footer {
     border-top: 1px solid var(--border-color);
     padding-top: 20px;
   }
-  
-  .skills-grid {
-    grid-template-columns: 1fr;
+
+  /* ── Skills ── */
+  .skills-grid { grid-template-columns: 1fr; }
+
+  /* ── Projects ── */
+  .projects-grid { grid-template-columns: 1fr; }
+
+  /* ── Portal ── */
+  .portal-workspace-grid { grid-template-columns: 1fr; }
+
+  .chat-panel-card {
+    height: 400px;
   }
-  
-  .projects-grid {
-    grid-template-columns: 1fr;
+
+  .portal-header h3 {
+    font-size: 1.35rem;
+    flex-wrap: wrap;
   }
-  
-  .portal-workspace-grid {
-    grid-template-columns: 1fr;
+
+  /* ── Dashboard ── */
+  .dashboard-header-block {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
   }
-  
+
+  .mode-selector-container {
+    align-items: flex-start;
+  }
+
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
-  
-  .card-double-height {
-    grid-column: span 1;
+
+  .card-double-height { grid-column: span 1; }
+
+  .metric-value { font-size: 1.25rem; }
+
+  /* ── Contact ── */
+  .contact-card { padding: 28px 20px; }
+
+  .contact-methods {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
   }
-  
+
+  .contact-method {
+    padding: 14px 18px;
+  }
+
+  /* ── Footer ── */
   .footer-container {
     flex-direction: column;
     text-align: center;
     gap: 16px;
   }
+}
+
+@media (max-width: 480px) {
+  .container { padding: 0 16px; }
+
+  section { padding: 48px 0; }
+
+  h1 { font-size: 1.7rem; line-height: 1.2; }
+  h2 { font-size: 1.4rem; }
+
+  .hero-section { padding-top: 80px; }
+
+  .hero-subtitle { font-size: 0.95rem; }
+
+  .hero-actions .btn {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+
+  /* Badge */
+  .badge-new { font-size: 0.72rem; padding: 5px 10px; }
+
+  /* Code card */
+  .code-editor { font-size: 0.7rem; padding: 12px; }
+
+  /* About stats stacked */
+  .about-stats {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .stat-num { font-size: 2rem; }
+
+  /* Skills & project tags smaller */
+  .skill-tags .skill-tag { padding: 6px 12px; font-size: 0.8rem; }
+
+  .project-tech-tags span { font-size: 0.7rem; }
+
+  /* Portal workspace */
+  .chat-panel-card { height: 360px; }
+
+  .chat-input-area input { font-size: 0.85rem; }
+
+  /* Dashboard metrics */
+  .metric-card { padding: 14px 16px; }
+  .metric-value { font-size: 1.1rem; }
+  .metric-title { font-size: 0.7rem; }
+  .metric-icon { width: 36px; height: 36px; font-size: 1rem; }
+
+  /* Passcode card */
+  .passcode-card { padding: 28px 16px; }
+
+  /* Contact */
+  .contact-method { flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+  .contact-meta { align-items: center; }
+
+  /* Footer */
+  .footer-links { gap: 16px; }
+  .footer-links a { font-size: 1.1rem; }
 }
